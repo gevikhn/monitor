@@ -5,6 +5,8 @@ using System.Globalization;
 using System.Linq;
 using System.Management;
 using System.Net.NetworkInformation;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
@@ -42,6 +44,9 @@ public sealed class HardwareMonitorService : IDisposable
     private double? _cachedVirtualTotalGb;
     private DateTimeOffset _virtualMemoryCachedAt = DateTimeOffset.MinValue;
     private static readonly TimeSpan MemoryInfoCacheDuration = TimeSpan.FromMinutes(5);
+    // GPU info cache (e.g., total VRAM via WMI). Total VRAM is stable, so no expiry needed.
+    private readonly object _gpuInfoCacheLock = new();
+    private readonly Dictionary<string, double?> _gpuTotalMemoryMbCache = new(StringComparer.Ordinal);
 
     public HardwareMonitorService(ILogger<HardwareMonitorService> logger)
     {
@@ -211,9 +216,59 @@ public sealed class HardwareMonitorService : IDisposable
             });
         }
 
-        var motherboardTemp = allReadings
-            .Where(t => IsMatch(t.HardwareType, "Motherboard") || ContainsKeyword(t.Hardware, "motherboard") || ContainsKeyword(t.Sensor, "system"))
+        // Prefer true motherboard/embedded-controller temperatures; avoid misclassifying SSD "system" sensors
+        var motherboardCandidates = allReadings
             .Where(t => t.ValueC.HasValue)
+            .Where(t =>
+                IsMatch(t.HardwareType, "Motherboard") ||
+                IsMatch(t.HardwareType, "EmbeddedController"))
+            .ToList();
+
+        if (motherboardCandidates.Count == 0)
+        {
+            // Fallback by hardware/sensor keywords, include SuperIO; exclude anything that looks like storage
+            static bool IsStorageLike(TemperatureReading t) =>
+                IsStorageHardware(t.HardwareType) ||
+                ContainsKeyword(t.Hardware, "ssd") ||
+                ContainsKeyword(t.Hardware, "nvme") ||
+                ContainsKeyword(t.Hardware, "hdd") ||
+                ContainsKeyword(t.Hardware, "drive") ||
+                ContainsKeyword(t.Hardware, "disk");
+
+            motherboardCandidates = allReadings
+                .Where(t => t.ValueC.HasValue)
+                .Where(t =>
+                    IsMatch(t.HardwareType, "SuperIO") ||
+                    ContainsKeyword(t.Hardware, "motherboard") ||
+                    ContainsKeyword(t.Hardware, "mainboard") ||
+                    ContainsKeyword(t.Hardware, "board") ||
+                    ContainsKeyword(t.Hardware, "chipset") ||
+                    ContainsKeyword(t.Hardware, "pch") ||
+                    ContainsKeyword(t.Hardware, "vrm") ||
+                    ContainsKeyword(t.Hardware, "mos") ||
+                    ContainsKeyword(t.Hardware, "mosfet") ||
+                    // Chinese keywords
+                    ContainsKeyword(t.Hardware, "主板") ||
+                    ContainsKeyword(t.Hardware, "系统板") ||
+                    ContainsKeyword(t.Hardware, "芯片组") ||
+                    ContainsKeyword(t.Hardware, "南桥") ||
+                    ContainsKeyword(t.Hardware, "北桥") ||
+                    // Some boards only expose meaningful labels in sensor names
+                    ContainsKeyword(t.Sensor, "motherboard") ||
+                    ContainsKeyword(t.Sensor, "mainboard") ||
+                    ContainsKeyword(t.Sensor, "chipset") ||
+                    ContainsKeyword(t.Sensor, "pch") ||
+                    ContainsKeyword(t.Sensor, "vrm") ||
+                    ContainsKeyword(t.Sensor, "mos") ||
+                    ContainsKeyword(t.Sensor, "mosfet") ||
+                    ContainsKeyword(t.Sensor, "系统") ||
+                    ContainsKeyword(t.Sensor, "主板") ||
+                    ContainsKeyword(t.Sensor, "芯片组"))
+                .Where(t => !IsStorageLike(t))
+                .ToList();
+        }
+
+        var motherboardTemp = motherboardCandidates
             .OrderByDescending(t => t.ValueC)
             .FirstOrDefault();
 
@@ -610,6 +665,16 @@ public sealed class HardwareMonitorService : IDisposable
         double totalUpload = 0;
         double totalDownload = 0;
 
+        NetworkInterface[] nicSnapshot;
+        try
+        {
+            nicSnapshot = NetworkInterface.GetAllNetworkInterfaces();
+        }
+        catch
+        {
+            nicSnapshot = Array.Empty<NetworkInterface>();
+        }
+
         var adapters = _networkHardware
             .Where(h => IsPhysicalNetworkHardware(h, physicalAdapterKeys))
             .Select(h =>
@@ -630,6 +695,26 @@ public sealed class HardwareMonitorService : IDisposable
                 var upload = ToMegabytesPerSecond(FindSensorValue(h, SensorType.Throughput, "Upload", "Sent"));
                 var download = ToMegabytesPerSecond(FindSensorValue(h, SensorType.Throughput, "Download", "Received"));
 
+                var ipAddresses = GetIpAddressesForHardware(h, nicSnapshot);
+                var nic = FindMatchingInterfaceForHardware(h, nicSnapshot);
+                double? linkSpeedMbps = null;
+                string? connectionType = null;
+                if (nic is not null)
+                {
+                    try
+                    {
+                        if (nic.Speed > 0)
+                        {
+                            linkSpeedMbps = nic.Speed / 1_000_000d; // bits per second -> Mbps
+                        }
+                        connectionType = nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ? "wireless" : "wired";
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
+
                 if (upload is > 0)
                 {
                     totalUpload += upload.Value;
@@ -645,7 +730,10 @@ public sealed class HardwareMonitorService : IDisposable
                     Name = displayName,
                     Identifier = identifier,
                     UploadMBps = upload,
-                    DownloadMBps = download
+                    DownloadMBps = download,
+                    IpAddresses = ipAddresses,
+                    LinkSpeedMbps = linkSpeedMbps,
+                    ConnectionType = connectionType
                 };
             })
             .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
@@ -658,6 +746,88 @@ public sealed class HardwareMonitorService : IDisposable
         };
 
         return (adapters, summary);
+    }
+
+    private static IReadOnlyList<string> GetIpAddressesForHardware(IHardware hardware, IEnumerable<NetworkInterface> nics)
+    {
+        var match = FindMatchingInterfaceForHardware(hardware, nics);
+        if (match is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            var props = match.GetIPProperties();
+            var unicast = props.UnicastAddresses;
+            var ips = new List<string>();
+            foreach (var addr in unicast)
+            {
+                var ip = addr.Address;
+                if (ip is null)
+                {
+                    continue;
+                }
+                // Only keep IPv4 addresses
+                if (ip.AddressFamily != AddressFamily.InterNetwork)
+                {
+                    continue;
+                }
+                if (IPAddress.IsLoopback(ip))
+                {
+                    continue;
+                }
+                ips.Add(ip.ToString());
+            }
+
+            // IPv4 only; order is stable now
+            ips = ips.ToList();
+
+            return ips;
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static NetworkInterface? FindMatchingInterfaceForHardware(IHardware hardware, IEnumerable<NetworkInterface> nics)
+    {
+        var hwNameKey = NormalizeAdapterKey(hardware.Name);
+        var hwIdKey = NormalizeAdapterKey(hardware.Identifier.ToString());
+
+        static string Norm(string? v)
+        {
+            if (string.IsNullOrWhiteSpace(v)) return string.Empty;
+            var sb = new StringBuilder(v.Length);
+            foreach (var ch in v)
+            {
+                if (char.IsLetterOrDigit(ch)) sb.Append(char.ToLowerInvariant(ch));
+            }
+            return sb.ToString();
+        }
+
+        NetworkInterface? candidate = null;
+        foreach (var nic in nics)
+        {
+            if (nic is null) continue;
+            if (nic.OperationalStatus != OperationalStatus.Up) continue;
+
+            var name = Norm(nic.Name);
+            var id = Norm(nic.Id);
+            var desc = Norm(nic.Description);
+
+            var nameMatch = !string.IsNullOrEmpty(hwNameKey) && (name.Contains(hwNameKey, StringComparison.Ordinal) || desc.Contains(hwNameKey, StringComparison.Ordinal));
+            var idMatch = !string.IsNullOrEmpty(hwIdKey) && (id.Contains(hwIdKey, StringComparison.Ordinal) || desc.Contains(hwIdKey, StringComparison.Ordinal));
+
+            if (nameMatch || idMatch)
+            {
+                candidate = nic;
+                break;
+            }
+        }
+
+        return candidate;
     }
 
     private DiskSummary CollectDiskSummary()
@@ -746,19 +916,78 @@ public sealed class HardwareMonitorService : IDisposable
         var clock = FindSensorValue(hardware, SensorType.Clock, "Core", "Graphics");
         var power = FindSensorValue(hardware, SensorType.Power, "GPU", "Graphics");
         var memoryLoad = FindSensorValue(hardware, SensorType.Load, "Memory", "VRAM");
-        var memoryUsed = FindSensorValue(hardware, SensorType.Data, "Memory Used", "GPU Memory Used", "VRAM Used");
-        var memoryFree = FindSensorValue(hardware, SensorType.Data, "Memory Free", "GPU Memory Free", "VRAM Free");
-        var memoryTotal = FindSensorValue(hardware, SensorType.Data, "Memory Total", "Total Memory", "VRAM Total");
+        // Prefer dedicated VRAM metrics when available to avoid counting shared memory
+        var dedicatedUsed = FindSensorValue(hardware, SensorType.Data,
+            "Dedicated Memory Used", "GPU Dedicated Memory Used", "D3D Dedicated Memory Used",
+            "Local Memory Used", "VRAM Used (Dedicated)");
+        var dedicatedFree = FindSensorValue(hardware, SensorType.Data,
+            "Dedicated Memory Free", "GPU Dedicated Memory Free", "D3D Dedicated Memory Free",
+            "Local Memory Free", "VRAM Free (Dedicated)");
+        var memoryUsed = dedicatedUsed ?? FindSensorValue(hardware, SensorType.Data, "Memory Used", "GPU Memory Used", "VRAM Used");
+        var memoryFree = dedicatedFree ?? FindSensorValue(hardware, SensorType.Data, "Memory Free", "GPU Memory Free", "VRAM Free");
+        var memoryTotal = FindSensorValue(hardware, SensorType.Data, "Dedicated Memory Total", "GPU Dedicated Memory Total", "Local Memory Total", "Memory Total", "GPU Memory Total", "VRAM Total");
 
-        if (memoryTotal is null && memoryUsed is not null && memoryFree is not null)
+        // NVIDIA: Prefer NVML for accurate dedicated VRAM used/total
+        try
+        {
+            var nameKey = NormalizeAdapterKey(hardware.Name);
+            if (!string.IsNullOrEmpty(nameKey) && nameKey.Contains("nvidia", StringComparison.Ordinal))
+            {
+                var nvmlInfo = TryGetNvidiaMemoryInfoMbViaNvml(nameKey);
+                if (nvmlInfo.TotalMb is > 0)
+                {
+                    memoryTotal = nvmlInfo.TotalMb;
+                }
+                if (nvmlInfo.UsedMb is >= 0)
+                {
+                    memoryUsed = nvmlInfo.UsedMb;
+                }
+                if (nvmlInfo.FreeMb is >= 0)
+                {
+                    memoryFree = nvmlInfo.FreeMb;
+                }
+            }
+        }
+        catch
+        {
+            // ignore NVML errors, fall back to sensors/WMI below
+        }
+
+    var dedicatedMemoryTotal = CalculateDedicatedGpuMemoryTotal(memoryUsed, memoryFree);
+        if (dedicatedMemoryTotal is not null)
+        {
+            memoryTotal = dedicatedMemoryTotal;
+        }
+        else if (memoryTotal is null && memoryUsed is not null && memoryFree is not null)
         {
             memoryTotal = memoryUsed + memoryFree;
         }
 
-        double? memoryUsagePercentage = memoryLoad;
-        if (memoryUsagePercentage is null && memoryUsed is not null && memoryTotal is > 0)
+        // WMI fallback for total VRAM (MB) when sensors are missing
+        if (memoryTotal is null || memoryTotal <= 0)
+        {
+            var totalMbFromWmi = GetCachedGpuTotalMemoryMb(hardware);
+            if (totalMbFromWmi is > 0)
+            {
+                memoryTotal = totalMbFromWmi;
+            }
+        }
+
+        // Prefer computing percentage from used/total when available, otherwise fall back to sensor load
+        double? memoryUsagePercentage = null;
+        if (memoryUsed is not null && memoryTotal is > 0)
         {
             memoryUsagePercentage = memoryUsed / memoryTotal * 100d;
+        }
+        else
+        {
+            memoryUsagePercentage = memoryLoad;
+        }
+
+        // If we have percentage and total, but missing used, estimate used = total * pct
+        if (memoryUsed is null && memoryUsagePercentage is not null && memoryTotal is > 0)
+        {
+            memoryUsed = memoryTotal * (memoryUsagePercentage.Value / 100d);
         }
 
         return new GpuMetrics
@@ -777,6 +1006,292 @@ public sealed class HardwareMonitorService : IDisposable
 
     private static double? ConvertMegabytesToGigabytes(double? value) =>
         value.HasValue ? value.Value / 1024d : null;
+
+    // Prefer dedicated memory (used + free) to avoid counting shared GPU memory.
+    private static double? CalculateDedicatedGpuMemoryTotal(double? memoryUsed, double? memoryFree)
+    {
+        if (memoryUsed is null || memoryFree is null)
+        {
+            return null;
+        }
+
+        var sum = memoryUsed.Value + memoryFree.Value;
+        return sum > 0 ? sum : null;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private double? GetCachedGpuTotalMemoryMb(IHardware hardware)
+    {
+        // Key by normalized name; if empty fall back to identifier
+        var nameKey = NormalizeAdapterKey(hardware.Name);
+        var idKey = NormalizeAdapterKey(hardware.Identifier.ToString());
+        var cacheKey = !string.IsNullOrEmpty(nameKey) ? nameKey : idKey;
+        if (string.IsNullOrEmpty(cacheKey))
+        {
+            cacheKey = "gpu";
+        }
+
+        lock (_gpuInfoCacheLock)
+        {
+            if (_gpuTotalMemoryMbCache.TryGetValue(cacheKey, out var cached))
+            {
+                return cached;
+            }
+
+            double? resolved = null;
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                {
+                    _gpuTotalMemoryMbCache[cacheKey] = null;
+                    return null;
+                }
+                // Prefer NVIDIA NVML if available for accurate VRAM on NVIDIA GPUs
+                if (!string.IsNullOrEmpty(nameKey) && nameKey.Contains("nvidia", StringComparison.Ordinal))
+                {
+                    resolved = TryGetNvidiaTotalMemoryMbViaNvml(nameKey);
+                }
+
+                // Fallback: WMI Win32_VideoController (can be inaccurate on some drivers)
+                if (resolved is null || resolved <= 0)
+                {
+                    using var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM, PNPDeviceID FROM Win32_VideoController");
+                    using var results = searcher.Get();
+
+                    static string Norm(string? v)
+                    {
+                        if (string.IsNullOrWhiteSpace(v)) return string.Empty;
+                        var sb = new StringBuilder(v.Length);
+                        foreach (var ch in v)
+                        {
+                            if (char.IsLetterOrDigit(ch)) sb.Append(char.ToLowerInvariant(ch));
+                        }
+                        return sb.ToString();
+                    }
+
+                    var normName = nameKey;
+                    var normId = idKey;
+
+                    ulong bestAdapterRam = 0;
+                    ulong fallbackMaxRam = 0;
+
+                    foreach (ManagementObject mo in results)
+                    {
+                        try
+                        {
+                            var wmiName = Norm(mo["Name"] as string);
+                            var wmiPnp = Norm(mo["PNPDeviceID"] as string);
+                            var ramObj = mo["AdapterRAM"]; // bytes
+
+                            if (ramObj is null) continue;
+
+                            ulong ramBytes = 0;
+                            try
+                            {
+                                ramBytes = Convert.ToUInt64(ramObj);
+                            }
+                            catch
+                            {
+                                continue;
+                            }
+
+                            // Track max as fallback (prefer discrete with largest VRAM)
+                            if (ramBytes > fallbackMaxRam)
+                            {
+                                fallbackMaxRam = ramBytes;
+                            }
+
+                            // Strong match by name or PNP ID
+                            var nameMatch = !string.IsNullOrEmpty(normName) && wmiName.Contains(normName, StringComparison.Ordinal);
+                            var idMatch = !string.IsNullOrEmpty(normId) && wmiPnp.Contains(normId, StringComparison.Ordinal);
+                            if (nameMatch || idMatch)
+                            {
+                                if (ramBytes > bestAdapterRam)
+                                {
+                                    bestAdapterRam = ramBytes;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // ignore this entry
+                        }
+                    }
+
+                    var selected = bestAdapterRam > 0 ? bestAdapterRam : fallbackMaxRam;
+                    if (selected > 0)
+                    {
+                        // Convert bytes -> MB
+                        resolved = selected / 1024d / 1024d;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to query GPU total memory via WMI");
+            }
+
+            _gpuTotalMemoryMbCache[cacheKey] = resolved;
+            return resolved;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private double? TryGetNvidiaTotalMemoryMbViaNvml(string normGpuName)
+    {
+        try
+        {
+            if (nvmlInit_v2() != 0) return null;
+            try
+            {
+                if (nvmlDeviceGetCount_v2(out var count) != 0 || count <= 0)
+                {
+                    return null;
+                }
+
+                double? bestMb = null;
+                Span<byte> nameBuf = stackalloc byte[96];
+                for (uint i = 0; i < (uint)count; i++)
+                {
+                    if (nvmlDeviceGetHandleByIndex_v2(i, out var handle) != 0)
+                    {
+                        continue;
+                    }
+
+                    if (nvmlDeviceGetName(handle, ref nameBuf[0], (uint)nameBuf.Length) != 0)
+                    {
+                        // still try memory even without name
+                    }
+
+                    var deviceName = Encoding.ASCII.GetString(nameBuf).TrimEnd('\0', ' ', '\t', '\r', '\n');
+                    var normName = NormalizeAdapterKey(deviceName);
+
+                    nvmlMemory_t mem;
+                    if (nvmlDeviceGetMemoryInfo(handle, out mem) != 0)
+                    {
+                        continue;
+                    }
+
+                    var totalMb = mem.total / 1024d / 1024d;
+                    // Prefer name match; otherwise keep the largest NVIDIA VRAM as fallback
+                    if (!string.IsNullOrEmpty(normGpuName) && normName.Contains(normGpuName, StringComparison.Ordinal))
+                    {
+                        return totalMb;
+                    }
+
+                    if (bestMb is null || totalMb > bestMb)
+                    {
+                        bestMb = totalMb;
+                    }
+                }
+
+                return bestMb;
+            }
+            finally
+            {
+                _ = nvmlShutdown();
+            }
+        }
+        catch (DllNotFoundException)
+        {
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private (double? TotalMb, double? UsedMb, double? FreeMb) TryGetNvidiaMemoryInfoMbViaNvml(string normGpuName)
+    {
+        try
+        {
+            if (nvmlInit_v2() != 0) return (null, null, null);
+            try
+            {
+                if (nvmlDeviceGetCount_v2(out var count) != 0 || count <= 0)
+                {
+                    return (null, null, null);
+                }
+
+                (double? TotalMb, double? UsedMb, double? FreeMb) best = (null, null, null);
+                Span<byte> nameBuf = stackalloc byte[96];
+                for (uint i = 0; i < (uint)count; i++)
+                {
+                    if (nvmlDeviceGetHandleByIndex_v2(i, out var handle) != 0)
+                    {
+                        continue;
+                    }
+
+                    _ = nvmlDeviceGetName(handle, ref nameBuf[0], (uint)nameBuf.Length);
+                    var deviceName = Encoding.ASCII.GetString(nameBuf).TrimEnd('\0', ' ', '\t', '\r', '\n');
+                    var normName = NormalizeAdapterKey(deviceName);
+
+                    if (nvmlDeviceGetMemoryInfo(handle, out var mem) != 0)
+                    {
+                        continue;
+                    }
+
+                    var totalMb = mem.total / 1024d / 1024d;
+                    var usedMb = mem.used / 1024d / 1024d;
+                    var freeMb = mem.free / 1024d / 1024d;
+
+                    // Prefer exact/contains match; else keep the largest VRAM as fallback
+                    if (!string.IsNullOrEmpty(normGpuName) && normName.Contains(normGpuName, StringComparison.Ordinal))
+                    {
+                        return (totalMb, usedMb, freeMb);
+                    }
+
+                    if (best.TotalMb is null || totalMb > best.TotalMb)
+                    {
+                        best = (totalMb, usedMb, freeMb);
+                    }
+                }
+
+                return best;
+            }
+            finally
+            {
+                _ = nvmlShutdown();
+            }
+        }
+        catch (DllNotFoundException)
+        {
+            return (null, null, null);
+        }
+        catch
+        {
+            return (null, null, null);
+        }
+    }
+
+    // NVML interop (NVIDIA-only). Functions return 0 (NVML_SUCCESS) on success.
+    [DllImport("nvml.dll", ExactSpelling = true)]
+    private static extern int nvmlInit_v2();
+
+    [DllImport("nvml.dll", ExactSpelling = true)]
+    private static extern int nvmlShutdown();
+
+    [DllImport("nvml.dll", ExactSpelling = true)]
+    private static extern int nvmlDeviceGetCount_v2(out int deviceCount);
+
+    [DllImport("nvml.dll", ExactSpelling = true)]
+    private static extern int nvmlDeviceGetHandleByIndex_v2(uint index, out IntPtr device);
+
+    [DllImport("nvml.dll", ExactSpelling = true)]
+    private static extern int nvmlDeviceGetName(IntPtr device, ref byte name, uint length);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct nvmlMemory_t
+    {
+        public ulong total;
+        public ulong free;
+        public ulong used;
+    }
+
+    [DllImport("nvml.dll", ExactSpelling = true)]
+    private static extern int nvmlDeviceGetMemoryInfo(IntPtr device, out nvmlMemory_t memory);
 
     private MemoryMetrics CollectMemoryMetrics()
     {

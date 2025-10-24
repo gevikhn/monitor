@@ -75,7 +75,7 @@
       padding:18px;
       display:flex; flex-direction:column; gap:14px;
       box-shadow: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
-      min-height:140px;
+      height:260px;
       position:relative;
       overflow:hidden;
     }
@@ -251,6 +251,28 @@
       flex-wrap:wrap;
       margin-top:6px;
     }
+    /* Mini temperature grid shown when collapsed */
+    .temp-mini-grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap:8px;
+      margin-top:10px;
+    }
+    .temp-card.expanded .temp-mini-grid{ display:none }
+    .mini-chip{
+      display:flex; flex-direction:column; gap:6px;
+      padding:8px 10px; border-radius:10px;
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--grid);
+      min-width:0; /* allow shrink */
+    }
+    .mini-chip .label{ font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+    .mini-chip .value{ font-size:16px; font-weight:700 }
+    .mini-chip.good{ background:rgba(125,216,125,.10); border-color:rgba(125,216,125,.35) }
+    .mini-chip.warn{ background:rgba(255,204,0,.10); border-color:rgba(255,204,0,.35) }
+    .mini-chip.bad{  background:rgba(255,90,95,.10); border-color:rgba(255,90,95,.35) }
+    .mini-bar{ height:6px; border-radius:999px; background:linear-gradient(180deg,#0c141f,#0a111a); border:1px solid var(--grid); overflow:hidden }
+    .mini-bar>i{ display:block; height:100%; width:40%; background:linear-gradient(90deg,#58a6ff,#ff8a65) }
     .temp-chip{
       display:flex;
       flex-direction:column;
@@ -436,7 +458,11 @@
                   <div class="chip small name-chip net-name" id="net-name-chip"><span>—</span></div>
                   <button type="button" class="gpu-button next" id="net-next" aria-label="下一块网卡">&#62;</button>
                 </div>
-                <div class="mono"  style="padding-left: 10px;">↑ <span id="net-up">0.0</span> MB/s &nbsp; ↓ <span id="net-down">0.0</span> MB/s</div>
+                <div class="mono"  style="padding-top: 5px; padding-left: 10px;">↑ <span id="net-up">0.0</span> MB/s &nbsp; ↓ <span id="net-down">0.0</span> MB/s</div>
+                <div class="chip-row" style="padding-top: 5px; padding-left: 6px; gap:6px">
+                  <div class="chip small" id="net-link-chip"></div>
+                </div>
+                <div class="chip-row" style="padding-top: 5px; padding-left: 6px; gap:6px" id="net-ip-list"></div>
               </div>
             </div>
           </div>
@@ -479,6 +505,8 @@
             </div>
             <button class="temp-toggle" id="temp-toggle">展开</button>
           </div>
+          <!-- Top hottest sensors preview (collapsed only) -->
+          <div class="temp-mini-grid" id="temp-mini-grid"></div>
           <div class="temp-list-wrapper">
             <ul class="temp-list" id="temp-list"></ul>
           </div>
@@ -592,7 +620,9 @@
     const alertListEl = document.getElementById('alert-list');
     const cpuNameChip = document.getElementById('cpu-name-chip');
     const gpuNameChip = document.getElementById('gpu-name-chip');
-    const netNameChip = document.getElementById('net-name-chip');
+  const netNameChip = document.getElementById('net-name-chip');
+  const netLinkChip = document.getElementById('net-link-chip');
+  const netIpListEl = document.getElementById('net-ip-list');
     const gpuPrevBtn = document.getElementById('gpu-prev');
     const gpuNextBtn = document.getElementById('gpu-next');
     const netPrevBtn = document.getElementById('net-prev');
@@ -601,6 +631,7 @@
     const tempToggleBtn = document.getElementById('temp-toggle');
     const tempListEl = document.getElementById('temp-list');
     const tempHighlightsEl = document.getElementById('temp-highlights');
+  const tempMiniGridEl = document.getElementById('temp-mini-grid');
     let tempCardBaseHeight = 140;
     const updateTempCardBaseHeight = () => {
       if(tempCard.classList.contains('expanded')) return tempCardBaseHeight;
@@ -677,6 +708,7 @@
         setMeter(gpuClockBar, clock != null ? clamp(clock / 3000 * 100, 0, 100) : 0);
         const memoryUsed = typeof gpu.memoryUsed === 'number' && !Number.isNaN(gpu.memoryUsed) ? gpu.memoryUsed : null;
         const memoryTotal = typeof gpu.memoryTotal === 'number' && !Number.isNaN(gpu.memoryTotal) ? gpu.memoryTotal : null;
+  // Debug log removed; use DevTools if needed to inspect gpu object
         let memoryPct = typeof gpu.memoryUsage === 'number' && !Number.isNaN(gpu.memoryUsage) ? gpu.memoryUsage : null;
         if(memoryPct == null && memoryUsed != null && memoryTotal != null && memoryTotal > 0){
           memoryPct = memoryUsed / memoryTotal * 100;
@@ -730,19 +762,64 @@
         const down = typeof adapter.downMBps === 'number' && !Number.isNaN(adapter.downMBps) ? adapter.downMBps : 0;
         setText('#net-up', up.toFixed(1));
         setText('#net-down', down.toFixed(1));
+        // link meta
+        const linkMbps = typeof adapter.linkSpeedMbps === 'number' && isFinite(adapter.linkSpeedMbps) ? adapter.linkSpeedMbps : null;
+        const typeText = adapter.connectionType === 'wireless' ? '无线' : (adapter.connectionType === 'wired' ? '有线' : null);
+        let speedText = null;
+        if(linkMbps != null){
+          speedText = linkMbps >= 1000 ? `${(linkMbps/1000).toFixed(1)} Gbps` : `${Math.round(linkMbps)} Mbps`;
+        }
+        const metaText = typeText && speedText ? `${typeText} · ${speedText}` : (typeText || speedText || '—');
+        if(netLinkChip){ setChipText(netLinkChip, metaText); }
+        const ips = Array.isArray(adapter.ips) ? adapter.ips : (Array.isArray(adapter.ipAddresses) ? adapter.ipAddresses : []);
+        renderNetIps(ips);
         if(push) netSpark.push(up + down);
         return;
       }
 
       if(netPrevBtn){ netPrevBtn.disabled = true; }
       if(netNextBtn){ netNextBtn.disabled = true; }
-      setChipText(netNameChip, '—');
+  setChipText(netNameChip, '—');
+  if(netLinkChip){ setChipText(netLinkChip, '—'); }
+  renderNetIps([]);
 
       const fallbackUp = netSummary && typeof netSummary.upMBps === 'number' && !Number.isNaN(netSummary.upMBps) ? netSummary.upMBps : 0;
       const fallbackDown = netSummary && typeof netSummary.downMBps === 'number' && !Number.isNaN(netSummary.downMBps) ? netSummary.downMBps : 0;
       setText('#net-up', fallbackUp.toFixed(1));
       setText('#net-down', fallbackDown.toFixed(1));
       if(push) netSpark.push(fallbackUp + fallbackDown);
+    }
+
+    function renderNetIps(ips){
+      if(!netIpListEl) return;
+      const list = Array.isArray(ips) ? ips.filter(ip => typeof ip === 'string' && ip.length) : [];
+      const maxChips = 3;
+      const shown = list.slice(0, maxChips);
+      const extra = list.length - shown.length;
+      netIpListEl.innerHTML = '&nbsp;IP:';
+      const frag = document.createDocumentFragment();
+      shown.forEach(ip => {
+        const chip = document.createElement('div');
+        chip.className = 'chip small ip-chip';
+        chip.textContent = ip;
+        chip.title = '点击复制';
+        chip.addEventListener('click', async () => {
+          try{
+            await navigator.clipboard?.writeText(ip);
+            const prev = chip.textContent;
+            chip.textContent = '已复制';
+            setTimeout(()=>{ chip.textContent = prev; }, 800);
+          }catch{}
+        }, { once: false });
+        frag.appendChild(chip);
+      });
+      if(extra > 0){
+        const more = document.createElement('div');
+        more.className = 'chip small';
+        more.textContent = `+${extra}`;
+        frag.appendChild(more);
+      }
+      netIpListEl.appendChild(frag);
     }
 
 function renderTempHighlights(){
@@ -774,6 +851,7 @@ function renderTempHighlights(){
 function renderTempList(){
   if(!latestTemps.length){
     renderTempHighlights();
+    renderTempMiniGrid();
     if(tempCard.classList.contains('expanded')){
       tempListEl.innerHTML = '';
     }
@@ -781,6 +859,7 @@ function renderTempList(){
   }
 
   renderTempHighlights();
+  renderTempMiniGrid();
 
   if(!tempCard.classList.contains('expanded')){
     return;
@@ -794,6 +873,45 @@ function renderTempList(){
       return `<li class="temp-item"><span>${entry.hardware} · ${entry.sensor}</span><span class="mono">${value}</span></li>`;
     })
     .join('');
+}
+
+function getTempSeverityClass(c){
+  if(c == null || !isFinite(c)) return '';
+  if(c >= 80) return 'bad';
+  if(c >= 60) return 'warn';
+  return 'good';
+}
+
+function renderTempMiniGrid(){
+  if(!tempMiniGridEl){ return; }
+  const temps = Array.isArray(latestTemps) ? latestTemps.filter(t => typeof t.valueC === 'number' && isFinite(t.valueC)) : [];
+  if(!temps.length){ tempMiniGridEl.innerHTML = ''; return; }
+
+  // Build items: use top 6 hottest unique labels
+  const items = [...temps]
+    .map(t => ({ label: `${t.hardware} · ${t.sensor}`, value: t.valueC }))
+    .sort((a,b) => b.value - a.value);
+
+  const seen = new Set();
+  const top = [];
+  for(const it of items){
+    const key = it.label.toLowerCase();
+    if(seen.has(key)) continue;
+    seen.add(key);
+    top.push(it);
+    if(top.length >= 3) break;
+  }
+
+  const html = top.map(it => {
+    const pct = clamp((it.value / 100) * 100, 0, 100);
+    const sev = getTempSeverityClass(it.value);
+    return `<div class="mini-chip ${sev}">
+      <div class="label" title="${it.label}">${it.label}</div>
+      <div class="value mono">${it.value.toFixed(1)} ℃</div>
+      <div class="mini-bar"><i style="width:${pct}%"></i></div>
+    </div>`;
+  }).join('');
+  tempMiniGridEl.innerHTML = html;
 }
 
     window.updateMetrics = function(m){
@@ -1043,7 +1161,10 @@ function renderTempList(){
             id: adapter.identifier ?? '',
             name: adapter.name ?? '',
             upMBps: adapter.uploadMBps ?? null,
-            downMBps: adapter.downloadMBps ?? null
+            downMBps: adapter.downloadMBps ?? null,
+            linkSpeedMbps: adapter.linkSpeedMbps ?? null,
+            connectionType: adapter.connectionType ?? null,
+            ips: Array.isArray(adapter.ipAddresses) ? adapter.ipAddresses : []
           })),
           disk: {
             readMBps: disk.readMbps ?? 0,

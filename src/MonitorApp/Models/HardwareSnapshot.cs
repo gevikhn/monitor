@@ -45,6 +45,9 @@ public sealed record NetworkAdapterMetrics
     public required string Identifier { get; init; }
     public double? UploadMBps { get; init; }
     public double? DownloadMBps { get; init; }
+    public IReadOnlyList<string> IpAddresses { get; init; } = Array.Empty<string>();
+    public double? LinkSpeedMbps { get; init; }
+    public string? ConnectionType { get; init; }
 }
 
 public sealed record TemperatureReading
