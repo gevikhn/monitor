@@ -1,9 +1,11 @@
-using System.Linq;
 using MonitorApp.Services;
 using MonitorApp.Utilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Linq;
+using System.Reflection;
+using System.IO;
 
 await RuntimeGuard.EnsureDotnetRuntimeAsync();
 
@@ -19,7 +21,7 @@ if (OperatingSystem.IsWindows())
     });
 }
 
-var baseUrl = builder.Configuration.GetValue<string>("App:BaseUrl") ?? "http://127.0.0.1:5231";
+var baseUrl = builder.Configuration.GetValue<string>("App:BaseUrl") ?? "http://0.0.0.0:5231";
 builder.WebHost.UseUrls(baseUrl);
 
 builder.Services.AddSingleton<HardwareMonitorService>();
@@ -28,12 +30,30 @@ var app = builder.Build();
 
 if (OperatingSystem.IsWindows())
 {
-    var startupLogger = app.Services.GetService<ILogger<Program>>();
+    var loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
+    var pawnIoLogger = loggerFactory.CreateLogger(nameof(PawnIoInstaller));
+    await PawnIoInstaller.EnsureInstalledAsync(pawnIoLogger);
+
+    var startupLogger = loggerFactory.CreateLogger<Program>();
     ProcessEfficiencyManager.EnableForCurrentProcess(startupLogger);
 }
 
-app.UseDefaultFiles();
-app.UseStaticFiles();
+var assembly = Assembly.GetExecutingAssembly();
+const string indexResource = "wwwroot/index.html";
+string indexHtml;
+await using (var stream = assembly.GetManifestResourceStream(indexResource))
+{
+    if (stream is null)
+    {
+        throw new FileNotFoundException($"Embedded resource was not found: {indexResource}");
+    }
+
+    using var reader = new StreamReader(stream);
+    indexHtml = await reader.ReadToEndAsync();
+}
+
+app.MapGet("/", () => Results.Content(indexHtml, "text/html; charset=utf-8"));
+app.MapGet("/index.html", () => Results.Content(indexHtml, "text/html; charset=utf-8"));
 
 app.MapGet("/api/metrics", (HardwareMonitorService monitor) =>
 {
@@ -53,6 +73,11 @@ try
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
     var resolvedUrl = app.Urls.FirstOrDefault() ?? baseUrl;
+    //如果ip是0.0.0.0，则替换为127.0.0.1
+    if (resolvedUrl.Contains("0.0.0.0"))
+    {
+        resolvedUrl = resolvedUrl.Replace("0.0.0.0", "127.0.0.1");
+    }
     TrayHost.Initialize(lifetime, resolvedUrl);
 
     logger.LogInformation("MonitorApp 已启动，监听地址 {Url}", resolvedUrl);
@@ -71,3 +96,4 @@ finally
 
     await app.DisposeAsync();
 }
+

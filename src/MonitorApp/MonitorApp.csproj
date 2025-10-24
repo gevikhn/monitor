@@ -7,6 +7,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
+    <DisableImplicitStaticWebAssets>true</DisableImplicitStaticWebAssets>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,10 +18,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Update="wwwroot\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    <Content Update="wwwroot\index.html">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>false</ExcludeFromSingleFile>
     </Content>
+    <EmbeddedResource Include="wwwroot\index.html">
+      <LogicalName>wwwroot/index.html</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
@@ -28,6 +34,12 @@
     <PackageReference Include="System.Threading.AccessControl" Version="9.0.10" />
     <PackageReference Include="System.IO.Ports" Version="9.0.10" />
     <PackageReference Include="HidSharp" Version="2.6.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="icon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

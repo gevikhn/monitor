@@ -35,11 +35,14 @@ public sealed record MemoryMetrics
     public double? UsedGb { get; init; }
     public double? AvailableGb { get; init; }
     public double? UsagePercentage { get; init; }
+    public double? SpeedMhz { get; init; }
+    public double? VirtualTotalGb { get; init; }
 }
 
 public sealed record NetworkAdapterMetrics
 {
     public required string Name { get; init; }
+    public required string Identifier { get; init; }
     public double? UploadMBps { get; init; }
     public double? DownloadMBps { get; init; }
 }

@@ -27,7 +27,7 @@
       color:var(--text);
     }
     .app{
-      width: min(1560px, 70vw);
+      min-width: min(720px, 70vw);
       height: 100vh;
       margin: 0 auto;
       padding: 18px;
@@ -75,7 +75,7 @@
       padding:18px;
       display:flex; flex-direction:column; gap:14px;
       box-shadow: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
-      min-height:240px;
+      min-height:140px;
       position:relative;
       overflow:hidden;
     }
@@ -106,6 +106,13 @@
     .mono{font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1}
     .chip{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:10px; background:var(--chip); color:#cbd8ea; font-size:12px; border:1px solid var(--grid)}
     .chip.small{font-size:11px; padding:3px 6px}
+    .chip-row{display:flex; flex-wrap:wrap; gap:8px}
+    .chip-label{opacity:.72; letter-spacing:.2px; font-size:11px}
+    .chip-value{font-weight:600}
+    .chip.small .chip-value{font-size:12px}
+    .chip.good{background:rgba(125,216,125,.16); border-color:rgba(125,216,125,.45); color:var(--good)}
+    .chip.warn{background:rgba(255,204,0,.16); border-color:rgba(255,204,0,.45); color:var(--warn)}
+    .chip.bad{background:rgba(255,90,95,.16); border-color:rgba(255,90,95,.45); color:var(--bad)}
 
     .ring{ --p:0; --col: var(--accent);
       width:72px; height:72px; border-radius:50%; position:relative;
@@ -225,7 +232,7 @@
     }
 
     .temp-card{
-      --temp-card-base-height: 240px;
+      --temp-card-base-height: 140px;
       min-height: var(--temp-card-base-height);
       transition:min-height .3s ease;
     }
@@ -299,7 +306,7 @@
       border:1px solid var(--grid);
     }
 
-    .icon{ width:16px; height:16px; opacity:.9 }
+    .icon{ width:64px; height:64px; opacity:.9 }
 
     @media (max-width: 1100px){
       .app{padding:16px}
@@ -329,7 +336,7 @@
         <section class="card span-2">
           <div class="card-content">
             <div class="row">
-              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2h6v2h3a2 2 0 0 1 2 2v3h2v6h-2v3a2 2 0 0 1-2 2h-3v2H9v-2H6a2 2 0 0 1-2-2v-3H2V9h2V6a2 2 0 0 1 2-2h3V2zM6 8v8h12V8H6z"/></svg>
+               <svg fill="currentColor" t="1761318930160" class="icon" viewBox="0 0 1099 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4952" id="mx_n_1761318930161" data-darkreader-inline-fill="" width="256" height="256"><path d="M906.26 398 906.26 337.2l-72.1 0.2 0-94.3c0-23.9-12.3-37.3-36.2-37.3l-86.9 0 0-73.8-61.5 0 0 73.8-92.4 0L557.16 132l-61.5 0-0.1 73.8L403.16 205.8l0.2-73.8-61.8 0 0.1 73.8-80.9 0c-29.7 0-41.9 13.4-41.7 44.4l-0.6 87.2-73.4 0L145.06 398l73.4 0 0 84.9-73.4-0.1 0 61.5 73.4 0.2 0 86.2-73.4 0 0 60.4 73.4 0 0 82.4c0 34 13.7 48.1 47.8 48.1l75.4 0-0.1 70.8 61.4 0 0.3-70.8 92.4 0 0 70.8 61.7 0-0.1-70.8 92.4 0-0.2 70.8 61.7 0 0.1-70.8 82.3 0c27.6 0 40.8-24.3 40.8-48.1l0-82.4 72.1 0 0-60.4L834.16 630.7l0-86.2 72.1 0 0-61.4-72.1-0.2L834.16 398 906.26 398zM772.56 760 280.06 760 280.06 267.4l492.6 0L772.66 760zM382.96 682.3l295.8 0c11.8 0 16.1-8.1 16.1-18.8L694.86 367c0-12.6-8.6-19.6-18.8-19.6L379.86 347.4c-15.4 0-19.9 5.7-19.9 21.2l0 290.6C359.96 674.6 367.56 682.3 382.96 682.3z" p-id="4953"></path></svg>
               <div class="grow">
                 <div class="label">CPU</div>
                 <div class="value mono" id="cpu-usage">0%</div>
@@ -348,14 +355,15 @@
         <section class="card span-2" id="gpu-card">
           <div class="card-content">
             <div class="row">
-              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v12H4zM2 8h2v8H2zM20 8h2v8h-2zM8 4h8v2H8zM8 20h8v-2H8z"/></svg>
+              <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v12H4zM2 8h2v8H2zM20 8h2v8h-2zM8 4h8v2H8zM8 20h8v-2H8z"/></svg> -->
+              <svg fill="currentColor" t="1761319215231" class="icon" viewBox="0 0 1874 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="9892" data-darkreader-inline-fill="" width="256" height="256" style="transform: rotate(90deg); transform-origin: center; transform-box: fill-box;"><path d="M158.647887 28.84507c8.653521 0 14.422535 5.769014 14.422536 14.422536v937.464788c0 8.653521-5.769014 14.422535-14.422536 14.422536s-14.422535-5.769014-14.422535-14.422536V43.267606c0-8.653521 5.769014-14.422535 14.422535-14.422536z" p-id="9893"></path><path d="M158.647887 187.492958H72.112676v144.225352h86.535211z" p-id="9894"></path><path d="M158.647887 346.140845H72.112676c-8.653521 0-14.422535-5.769014-14.422535-14.422535V187.492958c0-8.653521 5.769014-14.422535 14.422535-14.422535h86.535211c8.653521 0 14.422535 5.769014 14.422536 14.422535v144.225352c0 8.653521-5.769014 14.422535-14.422536 14.422535z m-72.112676-28.84507h57.690141v-115.380282H86.535211v115.380282z" p-id="9895"></path><path d="M158.647887 692.28169H72.112676v144.225352h86.535211z" p-id="9896"></path><path d="M158.647887 850.929577H72.112676c-8.653521 0-14.422535-5.769014-14.422535-14.422535V692.28169c0-8.653521 5.769014-14.422535 14.422535-14.422535h86.535211c8.653521 0 14.422535 5.769014 14.422536 14.422535v144.225352c0 8.653521-5.769014 14.422535-14.422536 14.422535z m-72.112676-28.84507h57.690141v-115.380282H86.535211v115.380282z" p-id="9897"></path><path d="M807.661972 204.8h291.335211l-74.997183 72.112676-36.056338 18.749296H937.464789l-40.383099-7.211268-57.690141-50.478873zM807.661972 814.873239h291.335211l-74.997183-72.112676-36.056338-18.749295H937.464789l-40.383099 8.653521-57.690141 49.036619z" p-id="9898"></path><path d="M807.661972 190.377465h291.335211v28.84507H807.661972z" p-id="9899"></path><path d="M1616.766197 894.197183H1205.723944c-25.960563 0-49.03662-10.095775-67.785916-25.960563l-131.24507-121.149296c-8.653521-7.211268-18.749296-11.538028-28.845071-11.538028h-41.825352c-10.095775 0-20.191549 4.326761-28.84507 10.095774L778.816901 858.140845c-25.960563 23.076056-60.574648 36.056338-95.188732 36.056338H158.647887v-28.84507h524.980282c27.402817 0 54.805634-10.095775 76.439437-28.845071l126.918309-112.495774c12.980282-11.538028 30.287324-17.307042 47.594367-17.307043h41.825352c18.749296 0 36.056338 7.211268 49.03662 18.749296l131.24507 121.149296c12.980282 11.538028 30.287324 18.749296 49.03662 18.749296h411.042253c23.076056 0 46.152113-8.653521 64.901409-23.076057l64.901408-53.36338c25.960563-21.633803 41.825352-54.805634 41.825352-89.419718v-389.408451c0-20.191549-8.653521-40.383099-24.51831-54.805634l-82.20845-72.112676c-18.749296-15.864789-41.825352-24.51831-66.343662-24.51831H1204.28169c-17.307042 0-34.614085 7.211268-47.594366 18.749296L1024 295.661972c-12.980282 11.538028-30.287324 18.749296-47.594366 18.749296h-43.267606c-17.307042 0-34.614085-5.769014-47.594366-17.307043L758.625352 187.492958c-20.191549-18.749296-47.594366-28.84507-74.997183-28.845071H158.647887V129.802817h524.980282c34.614085 0 67.785915 12.980282 93.746479 34.614084l126.91831 109.611268c7.211268 7.211268 17.307042 10.095775 28.84507 10.095775h43.267606c10.095775 0 21.633803-4.326761 28.84507-11.538029l132.687324-118.264788C1156.687324 138.456338 1179.76338 129.802817 1204.28169 129.802817H1615.323944c31.729577 0 62.016901 11.538028 85.092957 31.729577l82.208451 72.112676c21.633803 18.749296 34.614085 46.152113 34.614085 76.439437v389.408451c0 43.267606-18.749296 83.650704-51.921127 111.053521l-64.901409 53.36338c-24.51831 20.191549-53.36338 30.287324-83.650704 30.287324z" p-id="9900"></path><path d="M980.732394 274.028169h-43.267605c-8.653521 0-14.422535-5.769014-14.422535-14.422535s5.769014-14.422535 14.422535-14.422535h43.267605c8.653521 0 14.422535 5.769014 14.422536 14.422535s-5.769014 14.422535-14.422536 14.422535zM980.732394 778.816901h-43.267605c-8.653521 0-14.422535-5.769014-14.422535-14.422535s5.769014-14.422535 14.422535-14.422535h43.267605c8.653521 0 14.422535 5.769014 14.422536 14.422535s-5.769014 14.422535-14.422536 14.422535zM807.661972 796.123944h291.335211v28.84507H807.661972z" p-id="9901"></path><path d="M522.095775 584.833803c2.884507 98.073239-72.112676 165.859155-92.304226 180.28169 89.419718 34.614085 177.397183 23.076056 261.047888-36.056338-15.864789-89.419718-53.36338-149.994366-109.611268-181.723944-21.633803 24.51831-30.287324 27.402817-59.132394 37.498592zM468.732394 492.529577c-80.766197-54.805634-90.861972-155.76338-90.861971-178.839436-80.766197 51.921127-122.591549 129.802817-124.033803 233.64507 82.208451 38.940845 152.878873 44.709859 212.011267 17.307043-10.095775-33.171831-5.769014-41.825352 2.884507-72.112677zM588.439437 486.760563c86.535211-46.152113 180.28169-11.538028 201.915493 0-10.095775-96.630986-60.574648-168.743662-151.43662-216.338028-72.112676 54.805634-109.611268 115.380282-112.495775 180.28169 33.171831 7.211268 40.383099 14.422535 62.016902 36.056338z" p-id="9902"></path><path d="M526.422535 793.239437C370.659155 793.239437 245.183099 667.76338 245.183099 512S370.659155 230.760563 526.422535 230.760563 807.661972 356.23662 807.661972 512 682.185915 793.239437 526.422535 793.239437z m0-533.633803C387.966197 259.605634 274.028169 373.543662 274.028169 512S387.966197 764.394366 526.422535 764.394366 778.816901 650.456338 778.816901 512 664.878873 259.605634 526.422535 259.605634z" p-id="9903"></path><path d="M540.84507 451.425352l-28.84507-1.442253c2.884507-69.228169 41.825352-132.687324 116.822535-190.377465l17.307042 23.076056c-67.785915 51.921127-102.4 108.169014-105.284507 168.743662zM787.470423 506.230986c-62.016901-34.614085-128.360563-37.498592-204.8-4.326761l-11.538029-25.960563c83.650704-34.614085 160.090141-33.171831 229.31831 5.769014l-12.980281 24.51831zM666.321127 739.876056c-10.095775-80.766197-38.940845-142.783099-89.419719-183.166197l18.749296-21.633803c56.247887 46.152113 89.419718 113.938028 99.515493 201.915493l-28.84507 2.884507zM421.138028 771.605634l-15.864789-24.51831c59.132394-38.940845 98.073239-96.630986 116.822536-173.070423l27.402817 7.211268c-20.191549 83.650704-63.459155 147.109859-128.360564 190.377465zM392.292958 576.901408c-44.709859 0-92.304225-10.095775-141.340845-30.287323l11.538028-25.960564c77.88169 31.729577 149.994366 37.498592 213.453521 14.422535l10.095775 27.402817c-31.729577 10.095775-62.016901 14.422535-93.746479 14.422535zM455.752113 497.577465c-49.03662-38.940845-87.977465-102.4-115.380282-187.492958l27.402817-8.653521c25.960563 80.766197 62.016901 138.456338 105.284507 174.512676l-17.307042 21.633803z" p-id="9904"></path><path d="M526.422535 591.323944c-43.267606 0-79.323944-36.056338-79.323943-79.323944s36.056338-79.323944 79.323943-79.323944 79.323944 36.056338 79.323944 79.323944-36.056338 79.323944-79.323944 79.323944z m0-129.802817c-27.402817 0-50.478873 23.076056-50.478873 50.478873s23.076056 50.478873 50.478873 50.478873 50.478873-23.076056 50.478873-50.478873-23.076056-50.478873-50.478873-50.478873z" p-id="9905"></path><path d="M1307.489352 545.388169c-85.669859 47.796282-180.094197 14.047549-201.425127 3.043155 12.23031 96.19831 62.997634 166.811042 154.970141 213.626591 70.958873-55.959437 107.361352-116.937915 107.967099-182.228732-31.340169-5.23538-38.883155-12.547606-61.512113-34.441014zM1356.612507 448.757183c6.345915-98.606873 86.765972-158.359437 107.274817-171.858929-86.592901-43.267606-174.757859-37.325521-263.442028 13.874478 8.624676 89.93893 40.224451 153.311549 93.515718 190.810141 23.148169-23.364507 33.330479-25.902873 62.651493-32.82569zM1420.922592 551.517746c82.525746 50.608676 97.45307 148.566535 99.515493 172.349296 79.367211-55.815211 116.577352-135.571831 113.072676-236.818028-82.785352-33.792-153.989408-35.984225-210.929578-4.788282 9.619831 31.094986 6.25938 39.690817-1.658591 69.242592z" p-id="9906"></path><path d="M1363.477634 793.48462c-155.76338 0-281.239437-125.476056-281.239437-281.239437s125.476056-281.239437 281.239437-281.239437 281.239437 125.476056 281.239436 281.239437c0 154.321127-126.91831 281.239437-281.239436 281.239437z m0-533.633803c-138.456338 0-252.394366 113.938028-252.394366 252.394366s112.495775 252.394366 252.394366 252.394366 252.394366-113.938028 252.394366-252.394366-113.938028-252.394366-252.394366-252.394366z" p-id="9907"></path><path d="M1377.900169 451.670535l-28.84507-1.442253c2.884507-69.228169 41.825352-134.129577 116.822535-191.819719l17.307042 23.076057c-67.785915 53.36338-103.842254 109.611268-105.284507 170.185915zM1623.083268 505.033915c-62.016901-34.614085-128.360563-37.498592-204.8-4.32676l-11.538029-25.960563c83.650704-34.614085 160.090141-33.171831 229.31831 5.769014l-12.980281 24.518309zM1501.933972 740.121239c-10.095775-80.766197-38.940845-142.783099-89.419718-183.166197l18.749295-21.633803c56.247887 46.152113 89.419718 113.938028 99.515493 201.915493l-28.84507 2.884507zM1256.750873 771.850817l-15.864788-24.51831c59.132394-38.940845 98.073239-96.630986 116.822535-173.070422l27.402817 7.211267c-18.749296 82.208451-63.459155 147.109859-128.360564 190.377465zM1227.905803 577.146592c-44.709859 0-92.304225-10.095775-141.340845-30.287324l11.538028-25.960564c77.88169 31.729577 149.994366 37.498592 213.453521 14.422535l10.095775 27.402817c-30.287324 10.095775-60.574648 14.422535-93.746479 14.422536zM1292.807211 497.822648c-49.03662-38.940845-87.977465-102.4-115.380281-187.492958l27.402816-8.653521c25.960563 79.323944 62.016901 138.456338 106.726761 174.512676l-18.749296 21.633803z" p-id="9908"></path><path d="M1363.477634 591.569127c-43.267606 0-79.323944-36.056338-79.323944-79.323944s36.056338-79.323944 79.323944-79.323944 79.323944 36.056338 79.323943 79.323944-36.056338 79.323944-79.323943 79.323944z m0-129.802817c-27.402817 0-50.478873 23.076056-50.478873 50.478873s23.076056 50.478873 50.478873 50.478873 50.478873-23.076056 50.478873-50.478873-23.076056-50.478873-50.478873-50.478873z" p-id="9909"></path><path d="M1730.704225 331.71831h57.690141c8.653521 0 14.422535 5.769014 14.422535 14.422535s-5.769014 14.422535-14.422535 14.422535h-57.690141c-8.653521 0-14.422535-5.769014-14.422535-14.422535s5.769014-14.422535 14.422535-14.422535zM1730.704225 490.366197h57.690141c8.653521 0 14.422535 5.769014 14.422535 14.422535s-5.769014 14.422535-14.422535 14.422536h-57.690141c-8.653521 0-14.422535-5.769014-14.422535-14.422536s5.769014-14.422535 14.422535-14.422535zM1730.704225 663.43662h57.690141c8.653521 0 14.422535 5.769014 14.422535 14.422535s-5.769014 14.422535-14.422535 14.422535h-57.690141c-8.653521 0-14.422535-5.769014-14.422535-14.422535s5.769014-14.422535 14.422535-14.422535z" p-id="9910"></path></svg>
               <div class="grow">
                 <div class="label">GPU</div>
                 <div class="value mono" id="gpu-usage">0%</div>
                 <div class="gpu-name-switch">
-                  <button type="button" class="gpu-button prev" id="gpu-prev" aria-label="上一块 GPU">‹</button>
+                  <button type="button" class="gpu-button prev" id="gpu-prev" aria-label="上一块 GPU">&#60;</button>
                   <div class="chip small name-chip gpu-name" id="gpu-name-chip"><span>—</span></div>
-                  <button type="button" class="gpu-button next" id="gpu-next" aria-label="下一块 GPU">›</button>
+                  <button type="button" class="gpu-button next" id="gpu-next" aria-label="下一块 GPU">&#62;</button>
                 </div>
               </div>
               <div class="gpu-ring-wrap">
@@ -365,6 +373,7 @@
             <div class="kv">
               <div class="label">温度</div><div class="meter"><i id="gpu-temp-bar" style="background:linear-gradient(90deg,var(--accent2),#ff8a65)"></i></div><div class="mono" id="gpu-temp">— ℃</div>
               <div class="label">频率</div><div class="meter"><i id="gpu-clock-bar" style="background:linear-gradient(90deg,var(--accent2),#ff8a65)"></i></div><div class="mono" id="gpu-clock">— MHz</div>
+              <div class="label">显存</div><div class="meter"><i id="gpu-memory-bar" style="background:linear-gradient(90deg,var(--accent2),#ff8a65)"></i></div><div class="mono" id="gpu-memory">—</div>
             </div>
           </div>
           <canvas class="spark" id="gpu-spark"></canvas>
@@ -372,13 +381,25 @@
 
         <section class="card">
           <div class="card-content">
-            <div class="row" style="align-items:flex-end">
+            <div class="row" style="align-items:center">
               <div class="grow">
-                <div class="label">内存占用</div>
-                <div class="value mono"><span id="mem-used">—</span> / <span id="mem-total">—</span> <span class="unit">GB</span></div>
+                <div class="label">内存概览</div>
+                <div class="value mono"><span id="mem-used">--</span> / <span id="mem-total">--</span> <span class="unit">GB</span></div>
               </div>
-              <div style="min-width:180px;">
-                <div class="meter" style="height:14px"><i id="mem-bar" style="background:linear-gradient(90deg,var(--accent3),#a5d66a)"></i></div>
+              <div class="ring" id="mem-ring" style="--col:var(--accent3)"><span class="mono">0%</span></div>
+            </div>
+            <div class="chip-row">
+              <div class="chip small" id="mem-speed-chip">
+                <span class="chip-label">内存速度</span>
+                <span class="chip-value mono" id="mem-speed">-- MHz</span>
+              </div>
+              <div class="chip small" id="mem-virtual-chip">
+                <span class="chip-label">虚拟内存总量</span>
+                <span class="chip-value mono" id="mem-virtual-total">-- GB</span>
+              </div>
+              <div class="chip small" id="mem-pressure-chip">
+                <span class="chip-label">压力状态</span>
+                <span class="chip-value mono" id="mem-pressure">--</span>
               </div>
             </div>
           </div>
@@ -388,10 +409,10 @@
         <section class="card" id="fg-card">
           <div class="card-content">
             <div class="row">
-              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4l-3 3-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4v2h10V7H7zm0 4v2h7v-2H7z"/></svg>
+              <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4l-3 3-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4v2h10V7H7zm0 4v2h7v-2H7z"/></svg> -->
               <div class="grow">
                 <div class="label">前台应用</div>
-                <div class="value mono" id="fg-app-name">—</div>
+                <div class="value mono" id="fg-app-name" style="font-size: 18px;">—</div>
                 <div class="chip small" id="fg-process-name">—</div>
               </div>
             </div>
@@ -407,10 +428,15 @@
         <section class="card">
           <div class="card-content">
             <div class="row">
-              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 1 0-12 0H3a9 9 0 0 1 9-9zm0 6a3 3 0 0 1 3 3h-3V6zm0 12a9 9 0 0 1-9-9h3a6 6 0 0 0 12 0h3a9 9 0 0 1-9 9z"/></svg>
+              <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 1 0-12 0H3a9 9 0 0 1 9-9zm0 6a3 3 0 0 1 3 3h-3V6zm0 12a9 9 0 0 1-9-9h3a6 6 0 0 0 12 0h3a9 9 0 0 1-9 9z"/></svg> -->
               <div class="grow">
                 <div class="label">网络</div>
-                <div class="mono">↑ <span id="net-up">0.0</span> MB/s &nbsp; ↓ <span id="net-down">0.0</span> MB/s</div>
+                <div class="gpu-name-switch net-name-switch">
+                  <button type="button" class="gpu-button prev" id="net-prev" aria-label="上一块网卡">&#60;</button>
+                  <div class="chip small name-chip net-name" id="net-name-chip"><span>—</span></div>
+                  <button type="button" class="gpu-button next" id="net-next" aria-label="下一块网卡">&#62;</button>
+                </div>
+                <div class="mono"  style="padding-left: 10px;">↑ <span id="net-up">0.0</span> MB/s &nbsp; ↓ <span id="net-down">0.0</span> MB/s</div>
               </div>
             </div>
           </div>
@@ -420,7 +446,7 @@
         <section class="card">
           <div class="card-content">
             <div class="row">
-              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v16H4zM6 6v4h12V6H6zm0 6v6h12v-6H6z"/></svg>
+              <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v16H4zM6 6v4h12V6H6zm0 6v6h12v-6H6z"/></svg> -->
               <div class="grow">
                 <div class="label">磁盘 I/O</div>
                 <div class="mono">R <span id="disk-r">0.0</span> MB/s &nbsp; W <span id="disk-w">0.0</span> MB/s</div>
@@ -558,21 +584,27 @@
     const cpuClockBar = document.getElementById('cpu-clock-bar');
     const gpuTempBar = document.getElementById('gpu-temp-bar');
     const gpuClockBar = document.getElementById('gpu-clock-bar');
-    const memBar = document.getElementById('mem-bar');
+    const gpuMemoryBar = document.getElementById('gpu-memory-bar');
+    const memRingEl = document.getElementById('mem-ring');
+    const memPressureEl = document.getElementById('mem-pressure');
+    const memPressureChip = document.getElementById('mem-pressure-chip');
     // const alertsPanel = document.getElementById('alerts-panel');
     const alertListEl = document.getElementById('alert-list');
     const cpuNameChip = document.getElementById('cpu-name-chip');
     const gpuNameChip = document.getElementById('gpu-name-chip');
+    const netNameChip = document.getElementById('net-name-chip');
     const gpuPrevBtn = document.getElementById('gpu-prev');
     const gpuNextBtn = document.getElementById('gpu-next');
+    const netPrevBtn = document.getElementById('net-prev');
+    const netNextBtn = document.getElementById('net-next');
     const tempCard = document.getElementById('temp-card');
     const tempToggleBtn = document.getElementById('temp-toggle');
     const tempListEl = document.getElementById('temp-list');
     const tempHighlightsEl = document.getElementById('temp-highlights');
-    let tempCardBaseHeight = 240;
+    let tempCardBaseHeight = 140;
     const updateTempCardBaseHeight = () => {
       if(tempCard.classList.contains('expanded')) return tempCardBaseHeight;
-      const measured = Math.max(tempCard.offsetHeight, 240);
+      const measured = Math.max(tempCard.offsetHeight, 140);
       tempCardBaseHeight = measured;
       tempCard.style.setProperty('--temp-card-base-height', `${Math.round(measured)}px`);
       return measured;
@@ -586,6 +618,9 @@
     const fgMemBar = document.getElementById('fg-mem-bar');
     const fgMemTextEl = document.getElementById('fg-mem');
 
+    let netList = [];
+    let netIndex = 0;
+    let netSummary = null;
     let gpuList = [];
     let gpuIndex = 0;
     let latestTemps = [];
@@ -597,8 +632,13 @@
       setText('#clock', d.toLocaleTimeString());
     }, 1000);
 
+    if(netPrevBtn){ netPrevBtn.disabled = true; }
+    if(netNextBtn){ netNextBtn.disabled = true; }
+
     gpuPrevBtn.addEventListener('click', ()=>switchGpu(-1));
     gpuNextBtn.addEventListener('click', ()=>switchGpu(1));
+    if(netPrevBtn){ netPrevBtn.addEventListener('click', ()=>switchNet(-1)); }
+    if(netNextBtn){ netNextBtn.addEventListener('click', ()=>switchNet(1)); }
     tempToggleBtn.addEventListener('click', ()=>{
       const willExpand = !tempCard.classList.contains('expanded');
       if(willExpand){
@@ -635,6 +675,27 @@
         const clock = gpu.clock ?? null;
         setText('#gpu-clock', clock != null ? `${clock.toFixed(0)} MHz` : '— MHz');
         setMeter(gpuClockBar, clock != null ? clamp(clock / 3000 * 100, 0, 100) : 0);
+        const memoryUsed = typeof gpu.memoryUsed === 'number' && !Number.isNaN(gpu.memoryUsed) ? gpu.memoryUsed : null;
+        const memoryTotal = typeof gpu.memoryTotal === 'number' && !Number.isNaN(gpu.memoryTotal) ? gpu.memoryTotal : null;
+        let memoryPct = typeof gpu.memoryUsage === 'number' && !Number.isNaN(gpu.memoryUsage) ? gpu.memoryUsage : null;
+        if(memoryPct == null && memoryUsed != null && memoryTotal != null && memoryTotal > 0){
+          memoryPct = memoryUsed / memoryTotal * 100;
+        }
+        let memoryText = '—';
+        if(memoryUsed != null && memoryTotal != null && memoryTotal > 0){
+          const usedText = memoryUsed >= 10 ? memoryUsed.toFixed(0) : memoryUsed.toFixed(1);
+          const totalText = memoryTotal >= 10 ? memoryTotal.toFixed(0) : memoryTotal.toFixed(1);
+          memoryText = `${usedText} / ${totalText} GB`;
+          if(memoryPct != null){
+            memoryText += ` (${Math.round(memoryPct)}%)`;
+          }
+        } else if(memoryPct != null){
+          memoryText = `${Math.round(memoryPct)}%`;
+        } else if(memoryUsed != null){
+          memoryText = `${memoryUsed.toFixed(1)} GB`;
+        }
+        setText('#gpu-memory', memoryText);
+        setMeter(gpuMemoryBar, memoryPct != null ? clamp(memoryPct, 0, 100) : 0);
         if(push) gpuSpark.push(usage);
       } else {
         setChipText(gpuNameChip, '—');
@@ -645,8 +706,43 @@
         setMeter(gpuTempBar, 0);
         setText('#gpu-clock', '— MHz');
         setMeter(gpuClockBar, 0);
+        setText('#gpu-memory', '—');
+        setMeter(gpuMemoryBar, 0);
         if(push) gpuSpark.push(0);
       }
+    }
+
+    function switchNet(step){
+      if(!netList.length) return;
+      netIndex = (netIndex + step + netList.length) % netList.length;
+      renderNetCard(false);
+    }
+
+    function renderNetCard(push){
+      const adapter = netList[netIndex] ?? null;
+
+      if(netPrevBtn){ netPrevBtn.disabled = netList.length <= 1; }
+      if(netNextBtn){ netNextBtn.disabled = netList.length <= 1; }
+
+      if(adapter){
+        setChipText(netNameChip, adapter.name || `网卡 ${netIndex + 1}`);
+        const up = typeof adapter.upMBps === 'number' && !Number.isNaN(adapter.upMBps) ? adapter.upMBps : 0;
+        const down = typeof adapter.downMBps === 'number' && !Number.isNaN(adapter.downMBps) ? adapter.downMBps : 0;
+        setText('#net-up', up.toFixed(1));
+        setText('#net-down', down.toFixed(1));
+        if(push) netSpark.push(up + down);
+        return;
+      }
+
+      if(netPrevBtn){ netPrevBtn.disabled = true; }
+      if(netNextBtn){ netNextBtn.disabled = true; }
+      setChipText(netNameChip, '—');
+
+      const fallbackUp = netSummary && typeof netSummary.upMBps === 'number' && !Number.isNaN(netSummary.upMBps) ? netSummary.upMBps : 0;
+      const fallbackDown = netSummary && typeof netSummary.downMBps === 'number' && !Number.isNaN(netSummary.downMBps) ? netSummary.downMBps : 0;
+      setText('#net-up', fallbackUp.toFixed(1));
+      setText('#net-down', fallbackDown.toFixed(1));
+      if(push) netSpark.push(fallbackUp + fallbackDown);
     }
 
 function renderTempHighlights(){
@@ -716,7 +812,15 @@ function renderTempList(){
       }
       if(Array.isArray(m.gpus)){
         const currentName = gpuList[gpuIndex]?.name;
-        gpuList = m.gpus;
+        const prioritized = [...m.gpus].sort((a, b) => {
+          const aName = a?.name ?? '';
+          const bName = b?.name ?? '';
+          const aIsNvidia = /nvidia/i.test(aName);
+          const bIsNvidia = /nvidia/i.test(bName);
+          if(aIsNvidia === bIsNvidia) return 0;
+          return aIsNvidia ? -1 : 1;
+        });
+        gpuList = prioritized;
         if(!gpuList.length){
           gpuIndex = 0;
         } else if(currentName){
@@ -730,23 +834,96 @@ function renderTempList(){
         renderGpuCard(true);
       }
       if(m.mem){
-        const used = m.mem.usedGB ?? 0;
-        const total = m.mem.totalGB ?? 0;
-        const pct = total ? used/total*100 : 0;
-        setText('#mem-used', total?used.toFixed(1): (used?used.toFixed(1):'—'));
-        setText('#mem-total', total?total.toFixed(1):'—');
-        setMeter(memBar, pct);
-        memSpark.push(pct);
-        if(total){
+        const rawUsed = typeof m.mem.usedGB === 'number' && !Number.isNaN(m.mem.usedGB) ? m.mem.usedGB : null;
+        const rawTotal = typeof m.mem.totalGB === 'number' && !Number.isNaN(m.mem.totalGB) ? m.mem.totalGB : null;
+        const used = rawUsed != null ? Math.max(rawUsed, 0) : null;
+        const total = rawTotal != null ? Math.max(rawTotal, 0) : null;
+        const pct = total && used != null && total > 0 ? clamp((used / total) * 100, 0, 100) : null;
+
+        setText('#mem-used', used != null ? used.toFixed(1) : '--');
+        setText('#mem-total', total != null ? total.toFixed(1) : '--');
+        memSpark.push(pct ?? 0);
+        if(total != null && total > 0){
           totalMemoryGb = total;
         }
+
+        if(memRingEl){
+          if(pct != null){
+            setRing(memRingEl, pct);
+          } else {
+            memRingEl.style.setProperty('--p', 0);
+            const span = memRingEl.querySelector('span');
+            if(span) span.textContent = '--';
+          }
+        }
+
+        const speed = typeof m.mem.speedMhz === 'number' && !Number.isNaN(m.mem.speedMhz) ? m.mem.speedMhz : null;
+        setText('#mem-speed', speed != null ? `${Math.round(speed)} MHz` : '-- MHz');
+
+        const virtualTotal = typeof m.mem.virtualTotalGb === 'number' && !Number.isNaN(m.mem.virtualTotalGb) ? m.mem.virtualTotalGb : null;
+        setText('#mem-virtual-total', virtualTotal != null ? `${virtualTotal.toFixed(1)} GB` : '-- GB');
+
+        if(memPressureEl){
+          let pressureLabel = '--';
+          let pressureClass = null;
+          if(pct != null){
+            if(pct >= 90){
+              pressureLabel = '告警';
+              pressureClass = 'bad';
+            } else if(pct >= 75){
+              pressureLabel = '偏高';
+              pressureClass = 'warn';
+            } else {
+              pressureLabel = '正常';
+              pressureClass = 'good';
+            }
+          }
+          memPressureEl.textContent = pressureLabel;
+          if(memPressureChip){
+            memPressureChip.classList.remove('good','warn','bad');
+            if(pressureClass){
+              memPressureChip.classList.add(pressureClass);
+            }
+          }
+        }
+      } else {
+        setText('#mem-used', '--');
+        setText('#mem-total', '--');
+        memSpark.push(0);
+        if(memRingEl){
+          memRingEl.style.setProperty('--p', 0);
+          const span = memRingEl.querySelector('span');
+          if(span) span.textContent = '--';
+        }
+        setText('#mem-speed', '-- MHz');
+        setText('#mem-virtual-total', '-- GB');
+        if(memPressureEl){
+          memPressureEl.textContent = '--';
+        }
+        if(memPressureChip){
+          memPressureChip.classList.remove('good','warn','bad');
+        }
       }
+
       if(m.net){
-        const up = m.net.upMBps ?? 0;
-        const down = m.net.downMBps ?? 0;
-        setText('#net-up', up.toFixed(1));
-        setText('#net-down', down.toFixed(1));
-        netSpark.push(up + down);
+        netSummary = m.net;
+      }
+      if(Array.isArray(m.netAdapters)){
+        const currentId = netList[netIndex]?.id ?? null;
+        netList = m.netAdapters;
+        if(!netList.length){
+          netIndex = 0;
+        } else if(currentId){
+          const matchIndex = netList.findIndex(n => n.id === currentId);
+          netIndex = matchIndex >= 0 ? matchIndex : 0;
+        } else {
+          netIndex = 0;
+        }
+        renderNetCard(true);
+      } else if(m.net){
+        netList = [];
+        netIndex = 0;
+        renderNetCard(true);
       }
       if(m.disk){
         const r = m.disk.readMBps ?? 0;
@@ -831,6 +1008,7 @@ function renderTempList(){
         const gpus = Array.isArray(snapshot.gpus) ? snapshot.gpus : [];
         const mem = snapshot.memory ?? {};
         const net = snapshot.network ?? {};
+        const netAdapters = Array.isArray(snapshot.networkAdapters) ? snapshot.networkAdapters : [];
         const disk = snapshot.disk ?? {};
         const temps = Array.isArray(snapshot.temperatures) ? snapshot.temperatures : [];
         const tempHighlightsData = Array.isArray(snapshot.temperatureHighlights) ? snapshot.temperatureHighlights : [];
@@ -846,16 +1024,27 @@ function renderTempList(){
             name: gpu.name ?? '',
             usage: gpu.loadPercentage ?? 0,
             temp: gpu.temperatureC ?? null,
-            clock: gpu.coreClockMhz ?? null
+            clock: gpu.coreClockMhz ?? null,
+            memoryUsed: gpu.memoryUsedGb ?? null,
+            memoryTotal: gpu.memoryTotalGb ?? null,
+            memoryUsage: gpu.memoryUsagePercentage ?? null
           })),
           mem: {
             usedGB: mem.usedGb ?? null,
-            totalGB: mem.totalGb ?? null
+            totalGB: mem.totalGb ?? null,
+            speedMhz: mem.speedMhz ?? null,
+            virtualTotalGb: mem.virtualTotalGb ?? null
           },
           net: {
             upMBps: net.uploadMBps ?? 0,
             downMBps: net.downloadMBps ?? 0
           },
+          netAdapters: netAdapters.map(adapter => ({
+            id: adapter.identifier ?? '',
+            name: adapter.name ?? '',
+            upMBps: adapter.uploadMBps ?? null,
+            downMBps: adapter.downloadMBps ?? null
+          })),
           disk: {
             readMBps: disk.readMbps ?? 0,
             writeMBps: disk.writeMbps ?? 0
@@ -871,6 +1060,7 @@ function renderTempList(){
 
     setChipText(cpuNameChip, '—');
     setChipText(gpuNameChip, '—');
+    setChipText(netNameChip, '—');
     renderTempHighlights();
 
     fetchMetrics();
@@ -878,3 +1068,5 @@ function renderTempList(){
   </script>
 </body>
 </html>
+
+

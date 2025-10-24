@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Extensions.Hosting;
@@ -47,6 +48,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly string _serviceUrl;
     private readonly NotifyIcon _notifyIcon;
     private readonly ContextMenuStrip _contextMenu;
+    private readonly Icon _trayIcon;
     private ToolStripMenuItem _startupMenuItem = null!;
     private readonly SynchronizationContext _syncContext;
 
@@ -57,10 +59,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _syncContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
         _contextMenu = BuildMenu();
+        _trayIcon = LoadTrayIcon();
 
         _notifyIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _trayIcon,
             Visible = true,
             Text = "系统监控",
             ContextMenuStrip = _contextMenu
@@ -177,9 +180,34 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (disposing)
         {
             _notifyIcon.Dispose();
+            _trayIcon.Dispose();
             _contextMenu.Dispose();
         }
 
         base.Dispose(disposing);
+    }
+
+    private static Icon LoadTrayIcon()
+    {
+        try
+        {
+            var associatedIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            if (associatedIcon is not null)
+            {
+                return associatedIcon;
+            }
+
+            var iconPath = Path.Combine(AppContext.BaseDirectory, "icon.ico");
+            if (File.Exists(iconPath))
+            {
+                return new Icon(iconPath);
+            }
+        }
+        catch
+        {
+            // Ignore failures and fall back to the default icon.
+        }
+
+        return (Icon)SystemIcons.Application.Clone();
     }
 }

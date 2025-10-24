@@ -36,6 +36,12 @@ public sealed class HardwareMonitorService : IDisposable
     private List<IHardware> _storageHardware = new();
     private string? _cachedCpuName;
     private string? _cachedMotherboardName;
+    private readonly object _memoryInfoCacheLock = new();
+    private double? _cachedMemorySpeedMhz;
+    private DateTimeOffset _memorySpeedCachedAt = DateTimeOffset.MinValue;
+    private double? _cachedVirtualTotalGb;
+    private DateTimeOffset _virtualMemoryCachedAt = DateTimeOffset.MinValue;
+    private static readonly TimeSpan MemoryInfoCacheDuration = TimeSpan.FromMinutes(5);
 
     public HardwareMonitorService(ILogger<HardwareMonitorService> logger)
     {
@@ -608,6 +614,19 @@ public sealed class HardwareMonitorService : IDisposable
             .Where(h => IsPhysicalNetworkHardware(h, physicalAdapterKeys))
             .Select(h =>
             {
+                var identifier = h.Identifier.ToString();
+                if (string.IsNullOrWhiteSpace(identifier))
+                {
+                    identifier = NormalizeAdapterKey(h.Name);
+                }
+
+                if (string.IsNullOrWhiteSpace(identifier))
+                {
+                    identifier = "network-adapter";
+                }
+
+                var displayName = string.IsNullOrWhiteSpace(h.Name) ? identifier : h.Name;
+
                 var upload = ToMegabytesPerSecond(FindSensorValue(h, SensorType.Throughput, "Upload", "Sent"));
                 var download = ToMegabytesPerSecond(FindSensorValue(h, SensorType.Throughput, "Download", "Received"));
 
@@ -623,7 +642,8 @@ public sealed class HardwareMonitorService : IDisposable
 
                 return new NetworkAdapterMetrics
                 {
-                    Name = h.Name,
+                    Name = displayName,
+                    Identifier = identifier,
                     UploadMBps = upload,
                     DownloadMBps = download
                 };
@@ -760,36 +780,60 @@ public sealed class HardwareMonitorService : IDisposable
 
     private MemoryMetrics CollectMemoryMetrics()
     {
+        MemoryMetrics metrics;
         var memoryHardware = _memoryHardware;
 
         if (_memoryFallback || memoryHardware is null)
         {
             if (!OperatingSystem.IsWindows())
             {
-                return new MemoryMetrics();
+                metrics = new MemoryMetrics();
+            }
+            else
+            {
+                metrics = GetMemoryMetricsFromSystem();
+            }
+        }
+        else
+        {
+            var usedMemory = FindSensorValue(memoryHardware, SensorType.Data, "Used", "Memory Used");
+            var availableMemory = FindSensorValue(memoryHardware, SensorType.Data, "Available", "Free");
+
+            double? totalMemory = null;
+            if (usedMemory.HasValue && availableMemory.HasValue)
+            {
+                totalMemory = usedMemory + availableMemory;
             }
 
-            return GetMemoryMetricsFromSystem();
+            var memoryUsage = FindSensorValue(memoryHardware, SensorType.Load, "Memory", "Used");
+            var memoryClock = FindSensorValue(memoryHardware, SensorType.Clock, "Memory", "DRAM", "RAM");
+
+            metrics = new MemoryMetrics
+            {
+                TotalGb = totalMemory is > 0 ? totalMemory / 1024d : totalMemory,
+                UsedGb = usedMemory is > 0 ? usedMemory / 1024d : usedMemory,
+                AvailableGb = availableMemory is > 0 ? availableMemory / 1024d : availableMemory,
+                UsagePercentage = memoryUsage,
+                SpeedMhz = memoryClock,
+                VirtualTotalGb = null
+            };
         }
 
-        var usedMemory = FindSensorValue(memoryHardware, SensorType.Data, "Used", "Memory Used");
-        var availableMemory = FindSensorValue(memoryHardware, SensorType.Data, "Available", "Free");
-
-        double? totalMemory = null;
-        if (usedMemory.HasValue && availableMemory.HasValue)
+        if (OperatingSystem.IsWindows())
         {
-            totalMemory = usedMemory + availableMemory;
+            var enrichedSpeed = metrics.SpeedMhz ?? GetCachedMemorySpeedMhz();
+            var enrichedVirtual = metrics.VirtualTotalGb ?? GetCachedVirtualTotalGb();
+            if (enrichedSpeed != metrics.SpeedMhz || enrichedVirtual != metrics.VirtualTotalGb)
+            {
+                metrics = metrics with
+                {
+                    SpeedMhz = enrichedSpeed,
+                    VirtualTotalGb = enrichedVirtual
+                };
+            }
         }
 
-        var memoryUsage = FindSensorValue(memoryHardware, SensorType.Load, "Memory", "Used");
-
-        return new MemoryMetrics
-        {
-            TotalGb = totalMemory is > 0 ? totalMemory / 1024d : totalMemory,
-            UsedGb = usedMemory is > 0 ? usedMemory / 1024d : usedMemory,
-            AvailableGb = availableMemory is > 0 ? availableMemory / 1024d : availableMemory,
-            UsagePercentage = memoryUsage
-        };
+        return metrics;
     }
 
     [SupportedOSPlatform("windows")]
@@ -802,6 +846,154 @@ public sealed class HardwareMonitorService : IDisposable
 
         return GetMemoryMetricsFromWmi();
     }
+
+    [SupportedOSPlatform("windows")]
+    private double? GetCachedMemorySpeedMhz()
+    {
+        lock (_memoryInfoCacheLock)
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (_memorySpeedCachedAt != DateTimeOffset.MinValue &&
+                now - _memorySpeedCachedAt < MemoryInfoCacheDuration)
+            {
+                return _cachedMemorySpeedMhz;
+            }
+
+            var speed = GetMemorySpeedFromWmi();
+            _cachedMemorySpeedMhz = speed;
+            _memorySpeedCachedAt = now;
+            return speed;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private double? GetCachedVirtualTotalGb()
+    {
+        lock (_memoryInfoCacheLock)
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (_virtualMemoryCachedAt != DateTimeOffset.MinValue &&
+                now - _virtualMemoryCachedAt < MemoryInfoCacheDuration)
+            {
+                return _cachedVirtualTotalGb;
+            }
+
+            var total = GetVirtualMemoryTotalFromWmi();
+            _cachedVirtualTotalGb = total;
+            _virtualMemoryCachedAt = now;
+            return total;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private double? GetMemorySpeedFromWmi()
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT ConfiguredClockSpeed, Speed FROM Win32_PhysicalMemory");
+            using var modules = searcher.Get();
+            double? best = null;
+
+            foreach (ManagementObject module in modules)
+            {
+                try
+                {
+                    var candidate = ToClockSpeedMhz(module["ConfiguredClockSpeed"]) ?? ToClockSpeedMhz(module["Speed"]);
+                    if (candidate is > 0)
+                    {
+                        best = best is null ? candidate : Math.Max(best.Value, candidate.Value);
+                    }
+                }
+                finally
+                {
+                    module.Dispose();
+                }
+            }
+
+            return best;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "使用 WMI 获取内存速度失败");
+            return null;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private double? GetVirtualMemoryTotalFromWmi()
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT TotalVirtualMemorySize FROM Win32_OperatingSystem");
+            using var results = searcher.Get();
+            foreach (ManagementObject os in results)
+            {
+                try
+                {
+                    var total = ToVirtualTotalGb(os["TotalVirtualMemorySize"]);
+                    if (total.HasValue)
+                    {
+                        return total;
+                    }
+                }
+                finally
+                {
+                    os.Dispose();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "使用 WMI 获取虚拟内存总量失败");
+        }
+
+        return null;
+    }
+
+    private static double? ToClockSpeedMhz(object? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var clock = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+            return clock > 0 ? clock : null;
+        }
+        catch
+        {
+            try
+            {
+                var clock = Convert.ToUInt32(value, CultureInfo.InvariantCulture);
+                return clock > 0 ? clock : (double?)null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
+
+    private static double? ToVirtualTotalGb(object? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var kilobytes = Convert.ToUInt64(value, CultureInfo.InvariantCulture);
+            return ConvertKilobytesToGigabytes(kilobytes);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
 
     [SupportedOSPlatform("windows")]
     private bool TryGetMemoryMetricsFromNative(out MemoryMetrics metrics)
@@ -820,13 +1012,16 @@ public sealed class HardwareMonitorService : IDisposable
             var freeGb = ConvertBytesToGigabytes(status.AvailPhys);
             var usedGb = totalGb - freeGb;
             var usagePercentage = totalGb > 0 ? (usedGb / totalGb) * 100d : (double?)null;
+            var virtualTotalGb = ConvertBytesToGigabytes(status.TotalVirtual);
 
             metrics = new MemoryMetrics
             {
                 TotalGb = totalGb,
                 UsedGb = usedGb,
                 AvailableGb = freeGb,
-                UsagePercentage = usagePercentage
+                UsagePercentage = usagePercentage,
+                SpeedMhz = null,
+                VirtualTotalGb = virtualTotalGb > 0 ? virtualTotalGb : (double?)null
             };
 
             return true;
@@ -844,29 +1039,46 @@ public sealed class HardwareMonitorService : IDisposable
     {
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem");
-            foreach (var os in searcher.Get())
+            using var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory, TotalVirtualMemorySize FROM Win32_OperatingSystem");
+            using var results = searcher.Get();
+            foreach (ManagementObject os in results)
             {
-                var totalKb = Convert.ToUInt64(os["TotalVisibleMemorySize"], CultureInfo.InvariantCulture);
-                var freeKb = Convert.ToUInt64(os["FreePhysicalMemory"], CultureInfo.InvariantCulture);
-
-                var totalGb = ConvertKilobytesToGigabytes(totalKb);
-                var freeGb = ConvertKilobytesToGigabytes(freeKb);
-                var usedGb = totalGb - freeGb;
-                var usagePercentage = totalGb > 0 ? (usedGb / totalGb) * 100d : (double?)null;
-
-                return new MemoryMetrics
+                try
                 {
-                    TotalGb = totalGb,
-                    UsedGb = usedGb,
-                    AvailableGb = freeGb,
-                    UsagePercentage = usagePercentage
-                };
+                    var totalKb = Convert.ToUInt64(os["TotalVisibleMemorySize"], CultureInfo.InvariantCulture);
+                    var freeKb = Convert.ToUInt64(os["FreePhysicalMemory"], CultureInfo.InvariantCulture);
+
+                    var totalGb = ConvertKilobytesToGigabytes(totalKb);
+                    var freeGb = ConvertKilobytesToGigabytes(freeKb);
+                    var usedGb = totalGb - freeGb;
+                    var usagePercentage = totalGb > 0 ? (usedGb / totalGb) * 100d : (double?)null;
+
+                    double? virtualTotalGb = null;
+                    if (os["TotalVirtualMemorySize"] is not null)
+                    {
+                        var virtualKb = Convert.ToUInt64(os["TotalVirtualMemorySize"], CultureInfo.InvariantCulture);
+                        virtualTotalGb = ConvertKilobytesToGigabytes(virtualKb);
+                    }
+
+                    return new MemoryMetrics
+                    {
+                        TotalGb = totalGb,
+                        UsedGb = usedGb,
+                        AvailableGb = freeGb,
+                        UsagePercentage = usagePercentage,
+                        SpeedMhz = null,
+                        VirtualTotalGb = virtualTotalGb
+                    };
+                }
+                finally
+                {
+                    os.Dispose();
+                }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "读取系统内存信息失败");
+            _logger.LogError(ex, "获取系统内存信息失败");
         }
 
         return new MemoryMetrics
@@ -874,7 +1086,9 @@ public sealed class HardwareMonitorService : IDisposable
             TotalGb = null,
             UsedGb = null,
             AvailableGb = null,
-            UsagePercentage = null
+            UsagePercentage = null,
+            SpeedMhz = null,
+            VirtualTotalGb = null
         };
     }
 
