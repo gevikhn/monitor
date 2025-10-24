@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>系统监控</title>
+  <style>
+    :root{
+      --bg: #0b0f14;
+      --card: #121823;
+      --muted: #7c8aa0;
+      --text: #e8eef7;
+      --accent: #29b6f6;
+      --accent2:#ff6e40;
+      --accent3:#8bc34a;
+      --good: #7dd87d;
+      --warn: #ffcc00;
+      --bad:  #ff5a5f;
+      --grid: rgba(255,255,255,.06);
+      --chip: #1a2332;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, PingFang SC, Noto Sans CJK, Helvetica, Arial, "Microsoft Yahei", sans-serif;
+      background: radial-gradient(1200px 800px at 50% -10%, #132033, var(--bg));
+      color:var(--text);
+    }
+    .app{
+      width: min(1560px, 70vw);
+      height: 100vh;
+      margin: 0 auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent) transparent;
+    }
+    .app::-webkit-scrollbar{width:10px}
+    .app::-webkit-scrollbar-track{background:rgba(255,255,255,.04); border-radius:999px}
+    .app::-webkit-scrollbar-thumb{
+      background:linear-gradient(180deg, var(--accent), #1f9ad6);
+      border-radius:999px;
+      border:1px solid var(--grid);
+    }
+    .app::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg, #29c3ff, #1c8fc7)}
+    header{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 12px; background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid var(--grid); border-radius:14px;
+      backdrop-filter: blur(6px);
+    }
+    .title{font-weight:600; letter-spacing:.2px}
+    .subtitle{color:var(--muted); font-size:12px}
+    .content{
+      flex:1;
+      display:flex;
+      gap:18px;
+      min-height:0;
+    }
+    .grid{
+      flex:1;
+      display:grid;
+      gap:18px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-auto-rows:auto;
+      align-content:start;
+    }
+    .card{
+      background: var(--card);
+      border:1px solid var(--grid);
+      border-radius:16px;
+      padding:18px;
+      display:flex; flex-direction:column; gap:14px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
+      min-height:240px;
+      position:relative;
+      overflow:hidden;
+    }
+    .card-content{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      flex:1 0 auto;
+    }
+    .card-content{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      flex:1 0 auto;
+    }
+    .card-content{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      flex:1 0 auto;
+    }
+    .card.span-2{grid-column: span 2}
+    .row{display:flex; align-items:center; gap:10px; flex-wrap:nowrap}
+    .grow{flex:1}
+    .label{color:var(--muted); font-size:12px}
+    .value{font-weight:700; font-size:22px}
+    .unit{opacity:.8; font-size:12px}
+    .mono{font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1}
+    .chip{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:10px; background:var(--chip); color:#cbd8ea; font-size:12px; border:1px solid var(--grid)}
+    .chip.small{font-size:11px; padding:3px 6px}
+
+    .ring{ --p:0; --col: var(--accent);
+      width:72px; height:72px; border-radius:50%; position:relative;
+      background: conic-gradient(var(--col) calc(var(--p)*1%), rgba(255,255,255,.06) 0);
+      display:grid; place-items:center;
+      flex-shrink:0;
+    }
+    .ring::before{content:""; position:absolute; inset:6px; background:var(--card); border-radius:50%}
+    .ring span{ position:relative; font-weight:800; font-size:16px }
+
+    .meter{height:10px; background:linear-gradient(180deg,#0c141f,#0a111a); border:1px solid var(--grid); border-radius:999px; overflow:hidden}
+    .meter>i{display:block; height:100%; width:40%; background:linear-gradient(90deg,var(--accent),#42a5f5);}
+
+    .kv{display:grid; grid-template-columns:auto 1fr auto; gap:6px 10px; align-items:center; font-size:13px}
+    .divider{height:1px; background:var(--grid); margin:4px 0}
+
+    canvas.spark{ width:100%; height:56px; background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02)); border-radius:12px; border:1px solid var(--grid); margin-top:auto; display:block; flex:0 0 auto}
+
+    footer{display:flex; justify-content:space-between; align-items:center; color:var(--muted); font-size:12px}
+
+    /* .alerts-panel{
+      width: clamp(240px, 28vw, 320px);
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    } */
+    .panel-card{
+      background: var(--card);
+      border:1px solid var(--grid);
+      border-radius:16px;
+      padding:16px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      min-height:190px;
+    }
+    .panel-title{font-weight:600; font-size:16px; letter-spacing:.4px}
+    .panel-subtitle{color:var(--muted); font-size:12px}
+    .alert-body{display:flex; flex-direction:column; gap:8px; flex:1;}
+    .alert-empty{color:var(--muted); font-size:12px;}
+    .alert-chip{
+      display:flex; align-items:center; gap:6px;
+      padding:6px 10px;
+      border-radius:10px;
+      background:rgba(255,90,95,.08);
+      border:1px solid rgba(255,90,95,.35);
+      color:#ffd7d9;
+      font-size:12px;
+    }
+    /* .alerts-panel:not(.has-alerts) .panel-card{
+      opacity:.7;
+    } */
+
+    .gpu-ring-wrap{
+      width:72px;
+      height:72px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-shrink:0;
+    }
+    .gpu-name-switch{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top:6px;
+      min-width:0;
+    }
+    .gpu-name-switch .chip{
+      min-width:0;
+      flex:1 1 auto;
+    }
+    .gpu-button{
+      width:26px;
+      height:26px;
+      border-radius:8px;
+      border:1px solid var(--grid);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      display:grid;
+      place-items:center;
+      cursor:pointer;
+      padding:0;
+      font-size:14px;
+      transition:background .2s ease, border-color .2s ease, color .2s ease;
+      flex:0 0 auto;
+    }
+    .gpu-button:hover:not(:disabled){
+      background:rgba(41,182,246,.16);
+      border-color:rgba(41,182,246,.45);
+      color:var(--accent);
+    }
+    .gpu-button:disabled{
+      opacity:.3;
+      cursor:default;
+    }
+    .gpu-ring-wrap .ring{ width:72px; height:72px; }
+
+    .name-chip{
+      max-width:200px;
+      overflow:hidden;
+      min-width:0;
+    }
+    .name-chip.gpu-name{ max-width:240px; }
+    .name-chip span{ display:inline-block; white-space:nowrap; }
+    .name-chip.marquee{ position:relative; }
+    .name-chip.marquee .marquee-track{
+      display:inline-flex;
+      white-space:nowrap;
+      animation: marquee 8s linear infinite;
+    }
+    .name-chip.marquee .marquee-track span{ padding-right:24px; }
+    @keyframes marquee{
+      0%{ transform:translateX(0); }
+      100%{ transform:translateX(-50%); }
+    }
+
+    .temp-card{
+      --temp-card-base-height: 240px;
+      min-height: var(--temp-card-base-height);
+      transition:min-height .3s ease;
+    }
+    .temp-card.expanded{
+      min-height: calc(var(--temp-card-base-height) * 2);
+    }
+    .temp-card .temp-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+    }
+    .temp-highlights{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:6px;
+    }
+    .temp-chip{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      padding:8px 10px;
+      border-radius:12px;
+      background:linear-gradient(160deg, rgba(41,182,246,.18), rgba(12,18,27,.6));
+      border:1px solid rgba(41,182,246,.35);
+      min-width:110px;
+    }
+    .temp-chip .label{font-size:11px; color:var(--muted)}
+    .temp-chip .value{font-size:18px; font-weight:600}
+    .temp-toggle{
+      border:1px solid var(--grid);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      font-size:12px;
+      border-radius:8px;
+      padding:4px 10px;
+      cursor:pointer;
+      align-self:flex-start;
+    }
+    .temp-list-wrapper{
+      margin-top:12px;
+      border:1px solid var(--grid);
+      border-radius:12px;
+      background:rgba(255,255,255,.03);
+      overflow:hidden;
+      max-height:0;
+      transition:max-height .3s ease;
+    }
+    .temp-card.expanded .temp-list-wrapper{
+      max-height:360px;
+    }
+    .temp-list{
+      list-style:none;
+      margin:0;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      max-height:336px;
+      overflow:auto;
+    }
+    .temp-item{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      font-size:13px;
+      padding:6px 8px;
+      border-radius:8px;
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--grid);
+    }
+
+    .icon{ width:16px; height:16px; opacity:.9 }
+
+    @media (max-width: 1100px){
+      .app{padding:16px}
+      .content{flex-direction:column;}
+      /* .alerts-panel{width:100%; flex-direction:row;} */
+      .panel-card{flex:1; min-height:auto;}
+      .grid{ grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    }
+    @media (max-width: 900px){
+      .grid{ grid-template-columns: minmax(0, 1fr); }
+      .card.span-2{ grid-column: span 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <div class="title">系统监控</div>
+        <div class="subtitle" id="host">—</div>
+      </div>
+      <div class="chip" id="clock">00:00:00</div>
+    </header>
+
+    <div class="content">
+      <main class="grid">
+        <section class="card span-2">
+          <div class="card-content">
+            <div class="row">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2h6v2h3a2 2 0 0 1 2 2v3h2v6h-2v3a2 2 0 0 1-2 2h-3v2H9v-2H6a2 2 0 0 1-2-2v-3H2V9h2V6a2 2 0 0 1 2-2h3V2zM6 8v8h12V8H6z"/></svg>
+              <div class="grow">
+                <div class="label">CPU</div>
+                <div class="value mono" id="cpu-usage">0%</div>
+                <div class="chip small name-chip cpu-name" id="cpu-name-chip"><span>—</span></div>
+              </div>
+              <div class="ring" id="cpu-ring"><span class="mono" id="cpu-ring-val">0%</span></div>
+            </div>
+            <div class="kv">
+              <div class="label">温度</div><div class="meter"><i id="cpu-temp-bar"></i></div><div class="mono" id="cpu-temp">— ℃</div>
+              <div class="label">频率</div><div class="meter"><i id="cpu-clock-bar"></i></div><div class="mono" id="cpu-clock">— MHz</div>
+            </div>
+          </div>
+          <canvas class="spark" id="cpu-spark"></canvas>
+        </section>
+
+        <section class="card span-2" id="gpu-card">
+          <div class="card-content">
+            <div class="row">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v12H4zM2 8h2v8H2zM20 8h2v8h-2zM8 4h8v2H8zM8 20h8v-2H8z"/></svg>
+              <div class="grow">
+                <div class="label">GPU</div>
+                <div class="value mono" id="gpu-usage">0%</div>
+                <div class="gpu-name-switch">
+                  <button type="button" class="gpu-button prev" id="gpu-prev" aria-label="上一块 GPU">‹</button>
+                  <div class="chip small name-chip gpu-name" id="gpu-name-chip"><span>—</span></div>
+                  <button type="button" class="gpu-button next" id="gpu-next" aria-label="下一块 GPU">›</button>
+                </div>
+              </div>
+              <div class="gpu-ring-wrap">
+                <div class="ring" id="gpu-ring" style="--col:var(--accent2)"><span class="mono" id="gpu-ring-val">0%</span></div>
+              </div>
+            </div>
+            <div class="kv">
+              <div class="label">温度</div><div class="meter"><i id="gpu-temp-bar" style="background:linear-gradient(90deg,var(--accent2),#ff8a65)"></i></div><div class="mono" id="gpu-temp">— ℃</div>
+              <div class="label">频率</div><div class="meter"><i id="gpu-clock-bar" style="background:linear-gradient(90deg,var(--accent2),#ff8a65)"></i></div><div class="mono" id="gpu-clock">— MHz</div>
+            </div>
+          </div>
+          <canvas class="spark" id="gpu-spark"></canvas>
+        </section>
+
+        <section class="card">
+          <div class="card-content">
+            <div class="row" style="align-items:flex-end">
+              <div class="grow">
+                <div class="label">内存占用</div>
+                <div class="value mono"><span id="mem-used">—</span> / <span id="mem-total">—</span> <span class="unit">GB</span></div>
+              </div>
+              <div style="min-width:180px;">
+                <div class="meter" style="height:14px"><i id="mem-bar" style="background:linear-gradient(90deg,var(--accent3),#a5d66a)"></i></div>
+              </div>
+            </div>
+          </div>
+          <canvas class="spark" id="mem-spark"></canvas>
+        </section>
+
+        <section class="card" id="fg-card">
+          <div class="card-content">
+            <div class="row">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4l-3 3-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4v2h10V7H7zm0 4v2h7v-2H7z"/></svg>
+              <div class="grow">
+                <div class="label">前台应用</div>
+                <div class="value mono" id="fg-app-name">—</div>
+                <div class="chip small" id="fg-process-name">—</div>
+              </div>
+            </div>
+            <div class="kv">
+              <div class="label">CPU</div><div class="meter"><i id="fg-cpu-bar"></i></div><div class="mono" id="fg-cpu">— %</div>
+              <div class="label">内存</div><div class="meter"><i id="fg-mem-bar" style="background:linear-gradient(90deg,var(--accent3),#a5d66a)"></i></div><div class="mono" id="fg-mem">— MB</div>
+            </div>
+          </div>
+        </section>
+
+
+
+        <section class="card">
+          <div class="card-content">
+            <div class="row">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 1 0-12 0H3a9 9 0 0 1 9-9zm0 6a3 3 0 0 1 3 3h-3V6zm0 12a9 9 0 0 1-9-9h3a6 6 0 0 0 12 0h3a9 9 0 0 1-9 9z"/></svg>
+              <div class="grow">
+                <div class="label">网络</div>
+                <div class="mono">↑ <span id="net-up">0.0</span> MB/s &nbsp; ↓ <span id="net-down">0.0</span> MB/s</div>
+              </div>
+            </div>
+          </div>
+          <canvas class="spark" id="net-spark"></canvas>
+        </section>
+
+        <section class="card">
+          <div class="card-content">
+            <div class="row">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v16H4zM6 6v4h12V6H6zm0 6v6h12v-6H6z"/></svg>
+              <div class="grow">
+                <div class="label">磁盘 I/O</div>
+                <div class="mono">R <span id="disk-r">0.0</span> MB/s &nbsp; W <span id="disk-w">0.0</span> MB/s</div>
+              </div>
+            </div>
+          </div>
+          <canvas class="spark" id="disk-spark"></canvas>
+        </section>
+
+
+
+        <section class="card span-2 temp-card" id="temp-card">
+          <div class="temp-header">
+            <div>
+              <div class="label">温度传感器</div>
+              <div class="temp-highlights" id="temp-highlights">
+                <div class="temp-chip">
+                  <div class="label">CPU 封装</div>
+                  <div class="value mono">—</div>
+                </div>
+                <div class="temp-chip">
+                  <div class="label">CPU 核心</div>
+                  <div class="value mono">—</div>
+                </div>
+                <div class="temp-chip">
+                  <div class="label">主板</div>
+                  <div class="value mono">—</div>
+                </div>
+              </div>
+            </div>
+            <button class="temp-toggle" id="temp-toggle">展开</button>
+          </div>
+          <div class="temp-list-wrapper">
+            <ul class="temp-list" id="temp-list"></ul>
+          </div>
+        </section>
+      </main>
+
+      <!-- <aside class="alerts-panel" id="alerts-panel">
+        <div class="panel-card">
+          <div>
+            <div class="panel-title">告警</div>
+            <div class="panel-subtitle">实时监控</div>
+          </div>
+          <div class="alert-body" id="alert-list">
+            <div class="alert-empty">当前无告警</div>
+          </div>
+        </div>
+      </aside> -->
+    </div>
+
+    <footer>
+      <div id="source" class="subtitle">数据源：LibreHardwareMonitor</div>
+      <div class="mono" id="ver">—</div>
+    </footer>
+  </div>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const setText = (id, v)=>{ const el=$(id); if(el) el.textContent = v };
+    function clamp(n,min,max){ return Math.max(min, Math.min(max, n)) }
+
+    class Spark{
+      constructor(canvas, capacity=120, yMaxHint=100){
+        this.c = canvas; this.ctx = canvas.getContext('2d');
+        this.buf = []; this.capacity = capacity; this.yMaxHint = yMaxHint;
+        const dpr = Math.max(1, window.devicePixelRatio||1);
+        const rect = this.c.getBoundingClientRect();
+        this.c.width = rect.width * dpr; this.c.height = rect.height * dpr;
+        this.ctx.scale(dpr, dpr);
+      }
+      push(v){
+        this.buf.push(v ?? 0); if(this.buf.length>this.capacity) this.buf.shift();
+        this.draw();
+      }
+      draw(){
+        const w = this.c.clientWidth, h=this.c.clientHeight;
+        const ctx=this.ctx; ctx.clearRect(0,0,w,h);
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid');
+        ctx.lineWidth = 1; ctx.beginPath();
+        for(let y=0;y<=h;y+=10){ctx.moveTo(0,y);ctx.lineTo(w,y);} ctx.stroke();
+        if(this.buf.length<2) return;
+        const max = Math.max(this.yMaxHint, ...this.buf, 1);
+        ctx.beginPath();
+        ctx.strokeStyle = '#58a6ff';
+        ctx.lineWidth = 2; ctx.lineJoin='round'; ctx.lineCap='round';
+        for(let i=0;i<this.buf.length;i++){
+          const x = i * (w/(this.capacity-1));
+          const y = h - (this.buf[i]/max)*h;
+          i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+        }
+        ctx.stroke();
+        const grad = ctx.createLinearGradient(0,0,0,h);
+        grad.addColorStop(0,'rgba(88,166,255,.28)');
+        grad.addColorStop(1,'rgba(88,166,255,0)');
+        ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath();
+        ctx.fillStyle = grad; ctx.fill();
+      }
+    }
+
+    function setRing(el, percent){
+      if(!el) return;
+      percent = clamp(percent ?? 0, 0, 100);
+      el.style.setProperty('--p', percent);
+      el.querySelector('span').textContent = Math.round(percent) + '%';
+    }
+    function setMeter(el, percent){
+      if(!el) return;
+      el.style.width = clamp(percent ?? 0,0,100) + '%';
+    }
+
+    function setChipText(chipEl, text){
+      if(!chipEl) return;
+      const value = text && text.trim().length ? text : '—';
+      chipEl.classList.remove('marquee');
+      chipEl.innerHTML = `<span>${value}</span>`;
+      requestAnimationFrame(() => {
+        const span = chipEl.querySelector('span');
+        if(!span) return;
+        if(span.scrollWidth > chipEl.clientWidth){
+          chipEl.classList.add('marquee');
+          chipEl.innerHTML = `<div class="marquee-track"><span>${value}</span><span>${value}</span></div>`;
+        }
+      });
+    }
+
+    const cpuSpark = new Spark($('#cpu-spark'), 120, 100);
+    const gpuSpark = new Spark($('#gpu-spark'), 120, 100);
+    const memSpark = new Spark($('#mem-spark'), 120, 100);
+    const netSpark = new Spark($('#net-spark'), 120, 20);
+    const diskSpark= new Spark($('#disk-spark'),120, 20);
+    const cpuRingEl = document.getElementById('cpu-ring');
+    const gpuRingEl = document.getElementById('gpu-ring');
+    const cpuTempBar = document.getElementById('cpu-temp-bar');
+    const cpuClockBar = document.getElementById('cpu-clock-bar');
+    const gpuTempBar = document.getElementById('gpu-temp-bar');
+    const gpuClockBar = document.getElementById('gpu-clock-bar');
+    const memBar = document.getElementById('mem-bar');
+    // const alertsPanel = document.getElementById('alerts-panel');
+    const alertListEl = document.getElementById('alert-list');
+    const cpuNameChip = document.getElementById('cpu-name-chip');
+    const gpuNameChip = document.getElementById('gpu-name-chip');
+    const gpuPrevBtn = document.getElementById('gpu-prev');
+    const gpuNextBtn = document.getElementById('gpu-next');
+    const tempCard = document.getElementById('temp-card');
+    const tempToggleBtn = document.getElementById('temp-toggle');
+    const tempListEl = document.getElementById('temp-list');
+    const tempHighlightsEl = document.getElementById('temp-highlights');
+    let tempCardBaseHeight = 240;
+    const updateTempCardBaseHeight = () => {
+      if(tempCard.classList.contains('expanded')) return tempCardBaseHeight;
+      const measured = Math.max(tempCard.offsetHeight, 240);
+      tempCardBaseHeight = measured;
+      tempCard.style.setProperty('--temp-card-base-height', `${Math.round(measured)}px`);
+      return measured;
+    };
+    updateTempCardBaseHeight();
+    requestAnimationFrame(updateTempCardBaseHeight);
+    const fgAppNameEl = document.getElementById('fg-app-name');
+    const fgProcessNameEl = document.getElementById('fg-process-name');
+    const fgCpuBar = document.getElementById('fg-cpu-bar');
+    const fgCpuTextEl = document.getElementById('fg-cpu');
+    const fgMemBar = document.getElementById('fg-mem-bar');
+    const fgMemTextEl = document.getElementById('fg-mem');
+
+    let gpuList = [];
+    let gpuIndex = 0;
+    let latestTemps = [];
+    let tempHighlights = [];
+    let totalMemoryGb = 0;
+
+    setInterval(()=>{
+      const d=new Date();
+      setText('#clock', d.toLocaleTimeString());
+    }, 1000);
+
+    gpuPrevBtn.addEventListener('click', ()=>switchGpu(-1));
+    gpuNextBtn.addEventListener('click', ()=>switchGpu(1));
+    tempToggleBtn.addEventListener('click', ()=>{
+      const willExpand = !tempCard.classList.contains('expanded');
+      if(willExpand){
+        updateTempCardBaseHeight();
+        tempCard.classList.add('expanded');
+        tempToggleBtn.textContent = '收起';
+      } else {
+        tempCard.classList.remove('expanded');
+        tempToggleBtn.textContent = '展开';
+        setTimeout(updateTempCardBaseHeight, 320);
+      }
+      renderTempList();
+    });
+
+    function switchGpu(step){
+      if(!gpuList.length) return;
+      gpuIndex = (gpuIndex + step + gpuList.length) % gpuList.length;
+      renderGpuCard(false);
+    }
+
+    function renderGpuCard(push){
+      const gpu = gpuList[gpuIndex] ?? null;
+      gpuPrevBtn.disabled = gpuList.length <= 1;
+      gpuNextBtn.disabled = gpuList.length <= 1;
+
+      if(gpu){
+        setChipText(gpuNameChip, gpu.name || `GPU ${gpuIndex + 1}`);
+        const usage = gpu.usage ?? 0;
+        setText('#gpu-usage', Math.round(usage) + '%');
+        setRing(gpuRingEl, usage);
+        const temp = gpu.temp ?? null;
+        setText('#gpu-temp', temp != null ? `${temp.toFixed(0)} ℃` : '— ℃');
+        setMeter(gpuTempBar, temp != null ? clamp(temp, 0, 110) : 0);
+        const clock = gpu.clock ?? null;
+        setText('#gpu-clock', clock != null ? `${clock.toFixed(0)} MHz` : '— MHz');
+        setMeter(gpuClockBar, clock != null ? clamp(clock / 3000 * 100, 0, 100) : 0);
+        if(push) gpuSpark.push(usage);
+      } else {
+        setChipText(gpuNameChip, '—');
+        setText('#gpu-usage', '—');
+        setRing(gpuRingEl, 0);
+        if(gpuRingEl){ gpuRingEl.querySelector('span').textContent = '—'; }
+        setText('#gpu-temp', '— ℃');
+        setMeter(gpuTempBar, 0);
+        setText('#gpu-clock', '— MHz');
+        setMeter(gpuClockBar, 0);
+        if(push) gpuSpark.push(0);
+      }
+    }
+
+function renderTempHighlights(){
+  if(!tempHighlightsEl) return;
+
+  const highlights = tempHighlights
+    .filter(h => typeof h.valueC === 'number')
+    .map(h => ({ label: h.label, value: h.valueC }))
+    .slice(0, 3);
+
+  if(!highlights.length){
+    tempHighlightsEl.innerHTML = `
+      <div class="temp-chip">
+        <div class="label">无可用数据</div>
+        <div class="value mono">—</div>
+      </div>`;
+    return;
+  }
+
+  tempHighlightsEl.innerHTML = highlights
+    .map(item => `
+      <div class="temp-chip">
+        <div class="label">${item.label}</div>
+        <div class="value mono">${item.value.toFixed(1)} ℃</div>
+      </div>`)
+    .join("");
+}
+
+function renderTempList(){
+  if(!latestTemps.length){
+    renderTempHighlights();
+    if(tempCard.classList.contains('expanded')){
+      tempListEl.innerHTML = '';
+    }
+    return;
+  }
+
+  renderTempHighlights();
+
+  if(!tempCard.classList.contains('expanded')){
+    return;
+  }
+
+  const orderedTemps = [...latestTemps].sort((a,b) => (b.valueC ?? -Infinity) - (a.valueC ?? -Infinity));
+
+  tempListEl.innerHTML = orderedTemps
+    .map(entry => {
+      const value = entry.valueC != null ? `${entry.valueC.toFixed(1)} ℃` : '—';
+      return `<li class="temp-item"><span>${entry.hardware} · ${entry.sensor}</span><span class="mono">${value}</span></li>`;
+    })
+    .join('');
+}
+
+    window.updateMetrics = function(m){
+      if(m.cpu){
+        const usage = m.cpu.usage ?? 0;
+        setText('#cpu-usage', Math.round(usage)+'%');
+        setRing(cpuRingEl, usage);
+        const temp = m.cpu.temp ?? null;
+        setText('#cpu-temp', temp!=null ? `${temp.toFixed(0)} ℃` : '— ℃');
+        setMeter(cpuTempBar, temp!=null ? clamp(temp,0,100) : 0);
+        const clock = m.cpu.clock ?? null;
+        setText('#cpu-clock', clock!=null ? `${clock.toFixed(0)} MHz` : '— MHz');
+        setMeter(cpuClockBar, clock!=null ? clamp(clock/6000*100,0,100) : 0);
+        cpuSpark.push(usage);
+        setChipText(cpuNameChip, m.cpu.name ?? '—');
+      }
+      if(Array.isArray(m.gpus)){
+        const currentName = gpuList[gpuIndex]?.name;
+        gpuList = m.gpus;
+        if(!gpuList.length){
+          gpuIndex = 0;
+        } else if(currentName){
+          const matchIndex = gpuList.findIndex(g => g.name === currentName);
+          gpuIndex = matchIndex >= 0 ? matchIndex : 0;
+        } else {
+          gpuIndex = 0;
+        }
+        renderGpuCard(true);
+      } else if(!gpuList.length){
+        renderGpuCard(true);
+      }
+      if(m.mem){
+        const used = m.mem.usedGB ?? 0;
+        const total = m.mem.totalGB ?? 0;
+        const pct = total ? used/total*100 : 0;
+        setText('#mem-used', total?used.toFixed(1): (used?used.toFixed(1):'—'));
+        setText('#mem-total', total?total.toFixed(1):'—');
+        setMeter(memBar, pct);
+        memSpark.push(pct);
+        if(total){
+          totalMemoryGb = total;
+        }
+      }
+      if(m.net){
+        const up = m.net.upMBps ?? 0;
+        const down = m.net.downMBps ?? 0;
+        setText('#net-up', up.toFixed(1));
+        setText('#net-down', down.toFixed(1));
+        netSpark.push(up + down);
+      }
+      if(m.disk){
+        const r = m.disk.readMBps ?? 0;
+        const w = m.disk.writeMBps ?? 0;
+        setText('#disk-r', r.toFixed(1));
+        setText('#disk-w', w.toFixed(1));
+        diskSpark.push(r + w);
+      }
+
+      if(m.foregroundApp){
+        const app = m.foregroundApp;
+        fgAppNameEl.textContent = app.windowTitle || app.processName || '—';
+        fgProcessNameEl.textContent = app.processName || '—';
+
+        const cpuUsage = app.cpuUsagePercentage ?? null;
+        if(cpuUsage != null){
+          fgCpuTextEl.textContent = `${cpuUsage.toFixed(1)} %`;
+          setMeter(fgCpuBar, clamp(cpuUsage, 0, 100));
+        } else {
+          fgCpuTextEl.textContent = '— %';
+          setMeter(fgCpuBar, 0);
+        }
+
+        const memoryMb = app.memoryUsageMb ?? null;
+        if(memoryMb != null){
+          const display = memoryMb >= 1024 ? `${(memoryMb/1024).toFixed(1)} GB` : `${memoryMb.toFixed(0)} MB`;
+          fgMemTextEl.textContent = display;
+          const denominatorMb = totalMemoryGb > 0 ? totalMemoryGb * 1024 : 8192;
+          const memPct = clamp((memoryMb / denominatorMb) * 100, 0, 100);
+          setMeter(fgMemBar, memPct);
+        } else {
+          fgMemTextEl.textContent = '— MB';
+          setMeter(fgMemBar, 0);
+        }
+      } else {
+        fgAppNameEl.textContent = '—';
+        fgProcessNameEl.textContent = '—';
+        fgCpuTextEl.textContent = '— %';
+        fgMemTextEl.textContent = '— MB';
+        setMeter(fgCpuBar, 0);
+        setMeter(fgMemBar, 0);
+      }
+
+      // const alerts=[];
+      // if(m.cpu?.temp>85) alerts.push(`CPU 温度过高：${m.cpu.temp.toFixed(0)}℃`);
+      // const activeGpu = gpuList[gpuIndex];
+      // if(activeGpu?.temp>85) alerts.push(`GPU 温度过高：${activeGpu.temp.toFixed(0)}℃`);
+
+      // if(alerts.length){
+      //   alertsPanel.classList.add('has-alerts');
+      //   alertListEl.innerHTML = alerts
+      //     .map(a=>`<div class="alert-chip">⚠️ ${a}</div>`)
+      //     .join('');
+      // }else{
+      //   alertsPanel.classList.remove('has-alerts');
+      //   alertListEl.innerHTML = `<div class="alert-empty">当前无告警</div>`;
+      // }
+
+      tempHighlights = Array.isArray(m.temperatureHighlights) ? m.temperatureHighlights : [];
+      latestTemps = Array.isArray(m.temperatures) ? m.temperatures : [];
+
+      renderTempList();
+    }
+
+    async function fetchMetrics(){
+      try{
+        const res = await fetch('/api/metrics', { cache: 'no-store' });
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        const snapshot = await res.json();
+
+        if(snapshot.machineName){
+          const hostDetail = [snapshot.machineName, snapshot.osVersion, snapshot.motherboard].filter(Boolean).join(' · ');
+          setText('#host', hostDetail);
+        }
+
+        if(snapshot.timestamp){
+          const time = new Date(snapshot.timestamp);
+          setText('#ver', `采集 ${time.toLocaleTimeString()}`);
+        }
+
+        const cpu = snapshot.cpu ?? {};
+        const gpus = Array.isArray(snapshot.gpus) ? snapshot.gpus : [];
+        const mem = snapshot.memory ?? {};
+        const net = snapshot.network ?? {};
+        const disk = snapshot.disk ?? {};
+        const temps = Array.isArray(snapshot.temperatures) ? snapshot.temperatures : [];
+        const tempHighlightsData = Array.isArray(snapshot.temperatureHighlights) ? snapshot.temperatureHighlights : [];
+
+        window.updateMetrics({
+          cpu: {
+            name: snapshot.cpu?.name ?? null,
+            usage: cpu.totalLoadPercentage ?? 0,
+            temp: cpu.packageTemperatureC ?? null,
+            clock: cpu.clockMhz ?? null
+          },
+          gpus: gpus.map(gpu => ({
+            name: gpu.name ?? '',
+            usage: gpu.loadPercentage ?? 0,
+            temp: gpu.temperatureC ?? null,
+            clock: gpu.coreClockMhz ?? null
+          })),
+          mem: {
+            usedGB: mem.usedGb ?? null,
+            totalGB: mem.totalGb ?? null
+          },
+          net: {
+            upMBps: net.uploadMBps ?? 0,
+            downMBps: net.downloadMBps ?? 0
+          },
+          disk: {
+            readMBps: disk.readMbps ?? 0,
+            writeMBps: disk.writeMbps ?? 0
+          },
+          temperatures: temps,
+          temperatureHighlights: tempHighlightsData,
+          foregroundApp: snapshot.foregroundApp ?? null
+        });
+      }catch(err){
+        console.error('获取监控数据失败', err);
+      }
+    }
+
+    setChipText(cpuNameChip, '—');
+    setChipText(gpuNameChip, '—');
+    renderTempHighlights();
+
+    fetchMetrics();
+    setInterval(fetchMetrics, 2000);
+  </script>
+</body>
+</html>

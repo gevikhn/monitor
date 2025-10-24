@@ -1,0 +1,40 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+[Bb]uild/
+artifacts/
+out/
+publish/
+
+# IDE and tooling caches
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.userprefs
+*.rsuser
+_ReSharper.Caches/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.sln.docstates
+
+# Generated database/debug files
+*.pdb
+*.mdb
+*.ilk
+*.cache
+
+# OS files
+[Tt]humbs.db
+[Dd]esktop.ini
+*.DS_Store
+$RECYCLE.BIN/
+
+# Project-specific exclusions
+src/MonitorApp/tmp.txt
