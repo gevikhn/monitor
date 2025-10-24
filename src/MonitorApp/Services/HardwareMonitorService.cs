@@ -10,6 +10,7 @@ using System.Runtime.Versioning;
 using System.Text;
 using LibreHardwareMonitor.Hardware;
 using MonitorApp.Models;
+using MonitorApp.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace MonitorApp.Services;
@@ -22,6 +23,19 @@ public sealed class HardwareMonitorService : IDisposable
     private bool _memoryFallback;
     private readonly Dictionary<int, ProcessCpuSample> _processCpuSamples = new();
     private readonly ILogger<HardwareMonitorService> _logger;
+    private readonly object _networkAdapterCacheLock = new();
+    private HashSet<string> _physicalAdapterKeyCache = new(StringComparer.Ordinal);
+    private DateTimeOffset _physicalAdapterKeysCachedAt = DateTimeOffset.MinValue;
+    private readonly object _sensorCacheLock = new();
+    private readonly Dictionary<SensorCacheKey, ISensor?> _sensorCache = new();
+    private IHardware? _cpuHardware;
+    private IHardware? _memoryHardware;
+    private List<IHardware> _allHardware = new();
+    private List<IHardware> _gpuHardware = new();
+    private List<IHardware> _networkHardware = new();
+    private List<IHardware> _storageHardware = new();
+    private string? _cachedCpuName;
+    private string? _cachedMotherboardName;
 
     public HardwareMonitorService(ILogger<HardwareMonitorService> logger)
     {
@@ -40,6 +54,8 @@ public sealed class HardwareMonitorService : IDisposable
             _memoryFallback = true;
             _computer.Open();
         }
+
+        CacheHardwareInventory();
     }
 
     public HardwareSnapshot GetSnapshot()
@@ -49,8 +65,8 @@ public sealed class HardwareMonitorService : IDisposable
         _computer.Accept(_visitor);
 
         var timestamp = DateTimeOffset.Now;
-        var cpuHardware = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
-        var cpuName = cpuHardware?.Name ?? "Unknown CPU";
+        var cpuHardware = _cpuHardware;
+        var cpuName = _cachedCpuName ?? cpuHardware?.Name ?? "Unknown CPU";
 
         var cpuLoad = FindSensorValue(cpuHardware, SensorType.Load, "CPU Total", "Total CPU", "CPU Usage");
 
@@ -68,7 +84,7 @@ public sealed class HardwareMonitorService : IDisposable
         var (networkAdapters, networkSummary) = CollectNetworkMetrics(physicalAdapterKeys);
         var diskSummary = CollectDiskSummary();
 
-        var temperatureReadings = _computer.Hardware
+        var temperatureReadings = _allHardware
             .SelectMany(h => EnumerateSensors(h, SensorType.Temperature)
                 .Select(sensor => ToTemperatureReading(sensor.Hardware, sensor.Sensor)))
             .OrderBy(t => t.Hardware, StringComparer.OrdinalIgnoreCase)
@@ -78,7 +94,7 @@ public sealed class HardwareMonitorService : IDisposable
         var temperatureHighlights = BuildTemperatureHighlights(cpuPackageTemp, coreTemperatures, temperatureReadings);
         var foregroundApp = OperatingSystem.IsWindows() ? CollectForegroundAppMetrics() : null;
 
-        var motherboardName = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Motherboard)?.Name;
+        var motherboardName = _cachedMotherboardName;
 
         return new HardwareSnapshot
         {
@@ -116,6 +132,27 @@ public sealed class HardwareMonitorService : IDisposable
             IsStorageEnabled = true,
             IsControllerEnabled = true
         };
+
+    private void CacheHardwareInventory()
+    {
+        var hardware = _computer.Hardware ?? Array.Empty<IHardware>();
+        var hardwareList = new List<IHardware>(hardware);
+
+        lock (_sensorCacheLock)
+        {
+            _sensorCache.Clear();
+        }
+
+        _allHardware = hardwareList;
+        _cpuHardware = hardwareList.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
+        _cachedCpuName = _cpuHardware?.Name;
+        _memoryHardware = hardwareList.FirstOrDefault(h => h.HardwareType == HardwareType.Memory);
+        _cachedMotherboardName = hardwareList.FirstOrDefault(h => h.HardwareType == HardwareType.Motherboard)?.Name;
+
+        _gpuHardware = hardwareList.Where(IsPhysicalGpuHardware).ToList();
+        _networkHardware = hardwareList.Where(h => h.HardwareType == HardwareType.Network).ToList();
+        _storageHardware = hardwareList.Where(h => h.HardwareType == HardwareType.Storage).ToList();
+    }
 
     private void TryCloseComputer(Computer computer)
     {
@@ -209,73 +246,92 @@ public sealed class HardwareMonitorService : IDisposable
             return null;
         }
 
-        try
+        return ProcessEfficiencyManager.RunWithThreadPriority(() =>
         {
-            var handle = GetForegroundWindow();
-            if (handle == IntPtr.Zero)
-            {
-                return null;
-            }
-
-            if (GetWindowThreadProcessId(handle, out var pid) == 0 || pid == 0)
-            {
-                return null;
-            }
-
-            Process? process = null;
             try
             {
-                process = Process.GetProcessById((int)pid);
+                var handle = GetForegroundWindow();
+                if (handle == IntPtr.Zero)
+                {
+                    return null;
+                }
+
+                if (GetWindowThreadProcessId(handle, out var pid) == 0 || pid == 0)
+                {
+                    return null;
+                }
+
+                var windowTitle = GetWindowTitle(handle);
+                if (string.IsNullOrWhiteSpace(windowTitle))
+                {
+                    windowTitle = null;
+                }
+
+                Process? process = null;
+                try
+                {
+                    process = Process.GetProcessById((int)pid);
+                }
+                catch
+                {
+                    // ignore; fall back to window-title-only information
+                }
+
+                try
+                {
+                    string? processName = null;
+                    double? cpuUsage = null;
+                    double? memoryUsageMb = null;
+
+                    if (process is not null)
+                    {
+                        process.Refresh();
+
+                        if (string.IsNullOrWhiteSpace(windowTitle))
+                        {
+                            var mainWindowTitle = process.MainWindowTitle;
+                            if (!string.IsNullOrWhiteSpace(mainWindowTitle))
+                            {
+                                windowTitle = mainWindowTitle;
+                            }
+                        }
+
+                        processName = SafeProcessName(process);
+                        cpuUsage = CalculateProcessCpu(process, DateTime.UtcNow);
+
+                        try
+                        {
+                            var workingSet = process.WorkingSet64;
+                            if (workingSet > 0)
+                            {
+                                memoryUsageMb = workingSet / 1024d / 1024d;
+                            }
+                        }
+                        catch
+                        {
+                            // ignore
+                        }
+                    }
+
+                    var fallbackLabel = $"PID {pid}";
+                    return new ForegroundAppMetrics
+                    {
+                        WindowTitle = windowTitle ?? processName ?? fallbackLabel,
+                        ProcessName = processName ?? fallbackLabel,
+                        CpuUsagePercentage = cpuUsage,
+                        MemoryUsageMb = memoryUsageMb
+                    };
+                }
+                finally
+                {
+                    process?.Dispose();
+                }
             }
             catch
             {
                 return null;
             }
-
-            try
-            {
-                process.Refresh();
-
-                var now = DateTime.UtcNow;
-                var windowTitle = GetWindowTitle(handle);
-                if (string.IsNullOrWhiteSpace(windowTitle))
-                {
-                    windowTitle = process.MainWindowTitle;
-                }
-
-                var processName = SafeProcessName(process);
-                var cpuUsage = CalculateProcessCpu(process, now);
-                double? memoryUsageMb = null;
-                try
-                {
-                    var workingSet = process.WorkingSet64;
-                    if (workingSet > 0)
-                    {
-                        memoryUsageMb = workingSet / 1024d / 1024d;
-                    }
-                }
-                catch
-                {
-                    // ignore
-                }
-
-                return new ForegroundAppMetrics
-                {
-                    WindowTitle = string.IsNullOrWhiteSpace(windowTitle) ? processName : windowTitle,
-                    ProcessName = processName,
-                    CpuUsagePercentage = cpuUsage,
-                    MemoryUsageMb = memoryUsageMb
-                };
-            }
-            finally
-            {
-                process?.Dispose();
-            }
-        }
-        catch
-        {
-            return null;
-        }
+        });
     }
 
     private double? CalculateProcessCpu(Process process, DateTime now)
@@ -349,6 +405,8 @@ public sealed class HardwareMonitorService : IDisposable
     private static bool IsRamSpdToolkitMissing(FileNotFoundException ex) =>
         ex.FileName?.Contains("RAMSPDToolkit", StringComparison.OrdinalIgnoreCase) == true;
 
+    private static readonly TimeSpan PhysicalAdapterCacheDuration = TimeSpan.FromMinutes(1);
+
     private static readonly HashSet<NetworkInterfaceType> PhysicalInterfaceTypes = new()
     {
         NetworkInterfaceType.Ethernet,
@@ -384,42 +442,67 @@ public sealed class HardwareMonitorService : IDisposable
 
     private IReadOnlySet<string> GetPhysicalNetworkAdapterKeys()
     {
-        var keys = new HashSet<string>(StringComparer.Ordinal);
+        var now = DateTimeOffset.UtcNow;
 
-        try
+        lock (_networkAdapterCacheLock)
         {
-            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            var cacheIsFresh = now - _physicalAdapterKeysCachedAt < PhysicalAdapterCacheDuration;
+            if (cacheIsFresh && _physicalAdapterKeyCache.Count > 0)
             {
-                if (!IsPhysicalInterface(nic))
-                {
-                    continue;
-                }
+                return _physicalAdapterKeyCache;
+            }
 
-                var nameKey = NormalizeAdapterKey(nic.Name);
-                if (!string.IsNullOrEmpty(nameKey))
+            static void AddNormalizedKey(HashSet<string> target, string? value)
+            {
+                var key = NormalizeAdapterKey(value);
+                if (!string.IsNullOrEmpty(key))
                 {
-                    keys.Add(nameKey);
-                }
-
-                var descriptionKey = NormalizeAdapterKey(nic.Description);
-                if (!string.IsNullOrEmpty(descriptionKey))
-                {
-                    keys.Add(descriptionKey);
-                }
-
-                var idKey = NormalizeAdapterKey(nic.Id);
-                if (!string.IsNullOrEmpty(idKey))
-                {
-                    keys.Add(idKey);
+                    target.Add(key);
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "读取网卡信息失败");
-        }
 
-        return keys;
+            HashSet<string>? rebuilt = null;
+
+            try
+            {
+                rebuilt = new HashSet<string>(StringComparer.Ordinal);
+
+                foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (!IsPhysicalInterface(nic))
+                    {
+                        continue;
+                    }
+
+                    AddNormalizedKey(rebuilt, nic.Name);
+                    AddNormalizedKey(rebuilt, nic.Description);
+                    AddNormalizedKey(rebuilt, nic.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "读取网卡信息失败");
+
+                if (_physicalAdapterKeyCache.Count > 0)
+                {
+                    _physicalAdapterKeysCachedAt = now;
+                    return _physicalAdapterKeyCache;
+                }
+            }
+
+            _physicalAdapterKeysCachedAt = now;
+
+            if (rebuilt is not null)
+            {
+                _physicalAdapterKeyCache = rebuilt;
+            }
+            else if (_physicalAdapterKeyCache.Count == 0)
+            {
+                _physicalAdapterKeyCache = new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            return _physicalAdapterKeyCache;
+        }
     }
 
     private static bool IsPhysicalNetworkHardware(IHardware hardware, IReadOnlySet<string> physicalKeys)
@@ -521,8 +604,7 @@ public sealed class HardwareMonitorService : IDisposable
         double totalUpload = 0;
         double totalDownload = 0;
 
-        var adapters = _computer.Hardware
-            .Where(h => h.HardwareType == HardwareType.Network)
+        var adapters = _networkHardware
             .Where(h => IsPhysicalNetworkHardware(h, physicalAdapterKeys))
             .Select(h =>
             {
@@ -563,7 +645,7 @@ public sealed class HardwareMonitorService : IDisposable
         double totalRead = 0;
         double totalWrite = 0;
 
-        foreach (var hardware in _computer.Hardware.Where(h => h.HardwareType == HardwareType.Storage))
+        foreach (var hardware in _storageHardware)
         {
             var read = ToMegabytesPerSecond(FindSensorValue(hardware, SensorType.Throughput, "Read", "读取", "读", "Input"));
             var write = ToMegabytesPerSecond(FindSensorValue(hardware, SensorType.Throughput, "Write", "写", "Output"));
@@ -588,8 +670,7 @@ public sealed class HardwareMonitorService : IDisposable
 
     private List<GpuMetrics> CollectGpuMetrics()
     {
-        var metrics = _computer.Hardware
-            .Where(IsPhysicalGpuHardware)
+        var metrics = _gpuHardware
             .Select(CreateGpuMetrics)
             .Where(g => g is not null)
             .Select(g => g!)
@@ -679,7 +760,7 @@ public sealed class HardwareMonitorService : IDisposable
 
     private MemoryMetrics CollectMemoryMetrics()
     {
-        var memoryHardware = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Memory);
+        var memoryHardware = _memoryHardware;
 
         if (_memoryFallback || memoryHardware is null)
         {
@@ -713,6 +794,53 @@ public sealed class HardwareMonitorService : IDisposable
 
     [SupportedOSPlatform("windows")]
     private MemoryMetrics GetMemoryMetricsFromSystem()
+    {
+        if (TryGetMemoryMetricsFromNative(out var metrics))
+        {
+            return metrics;
+        }
+
+        return GetMemoryMetricsFromWmi();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private bool TryGetMemoryMetricsFromNative(out MemoryMetrics metrics)
+    {
+        metrics = new MemoryMetrics();
+
+        try
+        {
+            var status = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+            if (!GlobalMemoryStatusEx(ref status))
+            {
+                return false;
+            }
+
+            var totalGb = ConvertBytesToGigabytes(status.TotalPhys);
+            var freeGb = ConvertBytesToGigabytes(status.AvailPhys);
+            var usedGb = totalGb - freeGb;
+            var usagePercentage = totalGb > 0 ? (usedGb / totalGb) * 100d : (double?)null;
+
+            metrics = new MemoryMetrics
+            {
+                TotalGb = totalGb,
+                UsedGb = usedGb,
+                AvailableGb = freeGb,
+                UsagePercentage = usagePercentage
+            };
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "读取系统内存信息的本机 API 调用失败");
+            metrics = new MemoryMetrics();
+            return false;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private MemoryMetrics GetMemoryMetricsFromWmi()
     {
         try
         {
@@ -750,41 +878,112 @@ public sealed class HardwareMonitorService : IDisposable
         };
     }
 
+    private static double ConvertBytesToGigabytes(ulong valueInBytes) =>
+        valueInBytes / 1024d / 1024d / 1024d;
+
     private static double ConvertKilobytesToGigabytes(ulong valueInKb) =>
         valueInKb / 1024d / 1024d;
 
-    private static double? FindSensorValue(IHardware? hardware, SensorType sensorType, params string[] keywords)
+    private double? FindSensorValue(IHardware? hardware, SensorType sensorType, params string[] keywords)
     {
         if (hardware is null)
         {
             return null;
         }
 
+        var hardwareId = hardware.Identifier.ToString();
+        List<ISensor>? sensors = null;
+
         if (keywords is { Length: > 0 })
         {
             foreach (var keyword in keywords)
             {
-                var match = EnumerateSensors(hardware, sensorType)
-                    .Select(tuple => tuple.Sensor)
-                    .FirstOrDefault(sensor => SensorMatches(sensor, keyword) && sensor.Value.HasValue);
-
-                if (match?.Value is { } value)
+                if (TryGetCachedSensor(hardwareId, sensorType, keyword, out var cachedSensor))
                 {
-                    return value;
+                    var cachedValue = ReadSensorValue(cachedSensor);
+                    if (cachedValue.HasValue)
+                    {
+                        return cachedValue;
+                    }
+                }
+
+                sensors ??= EnumerateSensors(hardware, sensorType)
+                    .Select(tuple => tuple.Sensor)
+                    .ToList();
+
+                ISensor? firstMatch = null;
+                foreach (var sensor in sensors)
+                {
+                    if (!SensorMatches(sensor, keyword))
+                    {
+                        continue;
+                    }
+
+                    firstMatch ??= sensor;
+
+                    var value = ReadSensorValue(sensor);
+                    if (value.HasValue)
+                    {
+                        CacheSensor(hardwareId, sensorType, keyword, sensor);
+                        return value;
+                    }
+                }
+
+                if (firstMatch is not null)
+                {
+                    CacheSensor(hardwareId, sensorType, keyword, firstMatch);
                 }
             }
         }
 
-        foreach (var (_, sensor) in EnumerateSensors(hardware, sensorType))
+        if (TryGetCachedSensor(hardwareId, sensorType, string.Empty, out var defaultSensor))
         {
-            if (sensor.Value.HasValue)
+            var cachedValue = ReadSensorValue(defaultSensor);
+            if (cachedValue.HasValue)
             {
-                return sensor.Value;
+                return cachedValue;
+            }
+        }
+
+        sensors ??= EnumerateSensors(hardware, sensorType)
+            .Select(tuple => tuple.Sensor)
+            .ToList();
+
+        foreach (var sensor in sensors)
+        {
+            var value = ReadSensorValue(sensor);
+            if (value.HasValue)
+            {
+                CacheSensor(hardwareId, sensorType, string.Empty, sensor);
+                return value;
             }
         }
 
         return null;
     }
+
+    private bool TryGetCachedSensor(string hardwareId, SensorType sensorType, string keyword, out ISensor? sensor)
+    {
+        var key = new SensorCacheKey(hardwareId, sensorType, NormalizeSensorKeyword(keyword));
+        lock (_sensorCacheLock)
+        {
+            return _sensorCache.TryGetValue(key, out sensor);
+        }
+    }
+
+    private void CacheSensor(string hardwareId, SensorType sensorType, string keyword, ISensor? sensor)
+    {
+        var key = new SensorCacheKey(hardwareId, sensorType, NormalizeSensorKeyword(keyword));
+        lock (_sensorCacheLock)
+        {
+            _sensorCache[key] = sensor;
+        }
+    }
+
+    private static string NormalizeSensorKeyword(string? keyword) =>
+        string.IsNullOrWhiteSpace(keyword) ? string.Empty : keyword.Trim().ToLowerInvariant();
+
+    private static double? ReadSensorValue(ISensor? sensor) => sensor?.Value;
 
     private static bool SensorMatches(ISensor sensor, string keyword)
     {
@@ -828,6 +1027,23 @@ public sealed class HardwareMonitorService : IDisposable
         return builder.ToString();
     }
 
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx lpBuffer);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MemoryStatusEx
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhys;
+        public ulong AvailPhys;
+        public ulong TotalPageFile;
+        public ulong AvailPageFile;
+        public ulong TotalVirtual;
+        public ulong AvailVirtual;
+        public ulong AvailExtendedVirtual;
+    }
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -841,6 +1057,7 @@ public sealed class HardwareMonitorService : IDisposable
     private static extern int GetWindowTextLength(IntPtr hWnd);
 
     private sealed record ProcessCpuSample(TimeSpan TotalProcessorTime, DateTime Timestamp);
+    private readonly record struct SensorCacheKey(string HardwareId, SensorType SensorType, string Keyword);
 
     private static IEnumerable<(IHardware Hardware, ISensor Sensor)> EnumerateSensors(IHardware? hardware, SensorType sensorType)
     {

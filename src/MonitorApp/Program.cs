@@ -26,6 +26,12 @@ builder.Services.AddSingleton<HardwareMonitorService>();
 
 var app = builder.Build();
 
+if (OperatingSystem.IsWindows())
+{
+    var startupLogger = app.Services.GetService<ILogger<Program>>();
+    ProcessEfficiencyManager.EnableForCurrentProcess(startupLogger);
+}
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
