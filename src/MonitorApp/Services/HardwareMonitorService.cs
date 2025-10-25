@@ -47,6 +47,31 @@ public sealed class HardwareMonitorService : IDisposable
     // GPU info cache (e.g., total VRAM via WMI). Total VRAM is stable, so no expiry needed.
     private readonly object _gpuInfoCacheLock = new();
     private readonly Dictionary<string, double?> _gpuTotalMemoryMbCache = new(StringComparer.Ordinal);
+    // Foreground usage tracking
+    private readonly object _foregroundLock = new();
+    private string? _currentForegroundKey;
+    private DateTimeOffset _sessionStartAt = DateTimeOffset.MinValue;
+    private readonly Dictionary<string, double> _foregroundSeconds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _foregroundTitles = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan MinForegroundSession = TimeSpan.FromMinutes(1);
+    private static readonly HashSet<string> ExcludedForegroundProcesses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // 基础系统进程
+        "explorer", "searchhost", "shellhost", "shellexperiencehost", "widgets",
+        // 常见补充
+        "applicationframehost", "systemsettings", "textinputhost", "startmenuexperiencehost",
+        // 旧版搜索组件
+        "searchapp", "searchui",
+        "sihost", "taskmgr", "smartscreen"
+    };
+    private static string NormalizeProcName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+        var n = name.Trim();
+        if (n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) n = n[..^4];
+        return n;
+    }
+    private static bool IsExcludedProcessName(string? name) => ExcludedForegroundProcesses.Contains(NormalizeProcName(name));
 
     public HardwareMonitorService(ILogger<HardwareMonitorService> logger)
     {
@@ -103,7 +128,8 @@ public sealed class HardwareMonitorService : IDisposable
             .ToList();
 
         var temperatureHighlights = BuildTemperatureHighlights(cpuPackageTemp, coreTemperatures, temperatureReadings);
-        var foregroundApp = OperatingSystem.IsWindows() ? CollectForegroundAppMetrics() : null;
+    var foregroundApp = OperatingSystem.IsWindows() ? CollectForegroundAppMetrics() : null;
+    UpdateForegroundUsage(foregroundApp, timestamp);
 
         var motherboardName = _cachedMotherboardName;
 
@@ -128,7 +154,8 @@ public sealed class HardwareMonitorService : IDisposable
             TemperatureHighlights = temperatureHighlights,
             Network = networkSummary,
             Disk = diskSummary,
-            ForegroundApp = foregroundApp
+            ForegroundApp = foregroundApp,
+            TopForegroundApps = GetTopForegroundApps(timestamp)
         };
     }
 
@@ -393,6 +420,121 @@ public sealed class HardwareMonitorService : IDisposable
                 return null;
             }
         });
+    }
+
+    private void UpdateForegroundUsage(ForegroundAppMetrics? current, DateTimeOffset now)
+    {
+        lock (_foregroundLock)
+        {
+            var currKey = current != null
+                ? (!string.IsNullOrWhiteSpace(current.ProcessName) ? current.ProcessName! : (current.WindowTitle ?? "Unknown"))
+                : null;
+
+            // First assignment
+            if (_currentForegroundKey is null)
+            {
+                _currentForegroundKey = currKey;
+                _sessionStartAt = now;
+            }
+            else if (!string.Equals(_currentForegroundKey, currKey, StringComparison.Ordinal))
+            {
+                // Session switched: finalize previous session if meets threshold and not excluded
+                var duration = now - _sessionStartAt;
+                if (_currentForegroundKey != null && duration >= MinForegroundSession && !IsExcludedProcessName(_currentForegroundKey))
+                {
+                    var seconds = duration.TotalSeconds;
+                    if (_foregroundSeconds.TryGetValue(_currentForegroundKey, out var s))
+                        _foregroundSeconds[_currentForegroundKey] = s + seconds;
+                    else
+                        _foregroundSeconds[_currentForegroundKey] = seconds;
+                }
+
+                // Start new session
+                _currentForegroundKey = currKey;
+                _sessionStartAt = now;
+            }
+
+            // Update display title for current known process
+            if (current != null && !string.IsNullOrWhiteSpace(currKey))
+            {
+                if (!_foregroundTitles.ContainsKey(currKey))
+                {
+                    _foregroundTitles[currKey] = current.WindowTitle;
+                }
+                else if (!string.IsNullOrWhiteSpace(current.WindowTitle))
+                {
+                    _foregroundTitles[currKey] = current.WindowTitle;
+                }
+            }
+        }
+    }
+
+    private IReadOnlyList<TopForegroundApp> GetTopForegroundApps(DateTimeOffset now)
+    {
+        lock (_foregroundLock)
+        {
+            // Include ongoing session only if meets threshold and not excluded
+            if (_currentForegroundKey != null)
+            {
+                var duration = now - _sessionStartAt;
+                if (duration >= MinForegroundSession && !IsExcludedProcessName(_currentForegroundKey))
+                {
+                    var seconds = duration.TotalSeconds;
+                    if (_foregroundSeconds.TryGetValue(_currentForegroundKey, out var s))
+                        _foregroundSeconds[_currentForegroundKey] = Math.Max(s, s); // no-op, keep existing
+                    else
+                        _foregroundSeconds[_currentForegroundKey] = 0; // ensure key exists for display accumulation below
+                }
+            }
+
+            var list = _foregroundSeconds
+                .Where(kv => kv.Value >= MinForegroundSession.TotalSeconds && !IsExcludedProcessName(kv.Key))
+                .OrderByDescending(kv => kv.Value)
+                .Take(3)
+                .Select(kv => new TopForegroundApp
+                {
+                    Name = kv.Key,
+                    DisplayTitle = _foregroundTitles.TryGetValue(kv.Key, out var title) ? title : null,
+                    TotalSeconds = kv.Value
+                })
+                .ToList();
+
+            // Add ongoing session duration to display if it's in Top or when list has <3
+            if (_currentForegroundKey != null)
+            {
+                var duration = now - _sessionStartAt;
+                if (duration >= MinForegroundSession && !IsExcludedProcessName(_currentForegroundKey))
+                {
+                    var seconds = duration.TotalSeconds;
+                    var existing = list.FirstOrDefault(x => string.Equals(x.Name, _currentForegroundKey, StringComparison.OrdinalIgnoreCase));
+                    if (existing is null)
+                    {
+                        list.Add(new TopForegroundApp
+                        {
+                            Name = _currentForegroundKey,
+                            DisplayTitle = _foregroundTitles.TryGetValue(_currentForegroundKey, out var t) ? t : null,
+                            TotalSeconds = (_foregroundSeconds.TryGetValue(_currentForegroundKey, out var s) ? s : 0) + seconds
+                        });
+                    }
+                    else
+                    {
+                        var idx = list.FindIndex(x => string.Equals(x.Name, _currentForegroundKey, StringComparison.OrdinalIgnoreCase));
+                        if (idx >= 0)
+                        {
+                            list[idx] = existing with { TotalSeconds = existing.TotalSeconds + seconds };
+                        }
+                    }
+
+                    list = list
+                        .Where(x => x.TotalSeconds >= MinForegroundSession.TotalSeconds)
+                        .OrderByDescending(x => x.TotalSeconds)
+                        .Take(3)
+                        .ToList();
+                }
+            }
+
+            return list;
+        }
     }
 
     private double? CalculateProcessCpu(Process process, DateTime now)

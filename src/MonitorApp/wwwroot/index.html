@@ -230,6 +230,11 @@
       0%{ transform:translateX(0); }
       100%{ transform:translateX(-50%); }
     }
+    /* Foreground app title marquee */
+    .title-text{ font-size:18px; font-weight:700; white-space:nowrap; overflow:hidden; }
+    .title-text.marquee{ position:relative; }
+    .title-text.marquee .marquee-track{ display:inline-flex; white-space:nowrap; animation: marquee 10s linear infinite; }
+    .title-text.marquee .marquee-track span{ padding-right:32px; }
 
     .temp-card{
       --temp-card-base-height: 140px;
@@ -434,7 +439,7 @@
               <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4l-3 3-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4v2h10V7H7zm0 4v2h7v-2H7z"/></svg> -->
               <div class="grow">
                 <div class="label">前台应用</div>
-                <div class="value mono" id="fg-app-name" style="font-size: 18px;">—</div>
+                <div class="value title-text" id="fg-app-name">—</div>
                 <div class="chip small" id="fg-process-name">—</div>
               </div>
             </div>
@@ -442,6 +447,7 @@
               <div class="label">CPU</div><div class="meter"><i id="fg-cpu-bar"></i></div><div class="mono" id="fg-cpu">— %</div>
               <div class="label">内存</div><div class="meter"><i id="fg-mem-bar" style="background:linear-gradient(90deg,var(--accent3),#a5d66a)"></i></div><div class="mono" id="fg-mem">— MB</div>
             </div>
+            <div class="chip-row" id="fg-top-list" style="margin-top:6px"></div>
           </div>
         </section>
 
@@ -476,6 +482,25 @@
               <div class="grow">
                 <div class="label">磁盘 I/O</div>
                 <div class="mono">R <span id="disk-r">0.0</span> MB/s &nbsp; W <span id="disk-w">0.0</span> MB/s</div>
+                <div class="chip-row" style="margin-top:6px">
+                  <div class="chip small" id="disk-total-chip">
+                    <span class="chip-label">总吞吐</span>
+                    <span class="chip-value mono" id="disk-total">0.0 MB/s</span>
+                  </div>
+                  <div class="chip small" id="disk-rw-chip">
+                    <span class="chip-label">读/写占比</span>
+                    <span class="chip-value mono" id="disk-rw-ratio">—</span>
+                  </div>
+                  <div class="chip small" id="disk-peak-chip">
+                    <span class="chip-label">最近峰值</span>
+                    <span class="chip-value mono" id="disk-peak">0.0 MB/s</span>
+                  </div>
+                </div>
+                <div class="kv" style="margin-top:6px">
+                  <div class="label">活跃度</div>
+                  <div class="meter"><i id="disk-activity-bar"></i></div>
+                  <div class="mono" id="disk-activity-text">— %</div>
+                </div>
               </div>
             </div>
           </div>
@@ -601,6 +626,25 @@
       });
     }
 
+    function setTitleText(el, text){
+      if(!el) return;
+      const value = (text || '—').toString();
+      el.classList.remove('marquee');
+      el.textContent = value;
+      requestAnimationFrame(() => {
+        if(el.scrollWidth > el.clientWidth){
+          el.classList.add('marquee');
+          const track = document.createElement('div');
+          track.className = 'marquee-track';
+          const s1 = document.createElement('span'); s1.textContent = value;
+          const s2 = document.createElement('span'); s2.textContent = value;
+          track.appendChild(s1); track.appendChild(s2);
+          el.innerHTML = '';
+          el.appendChild(track);
+        }
+      });
+    }
+
     const cpuSpark = new Spark($('#cpu-spark'), 120, 100);
     const gpuSpark = new Spark($('#gpu-spark'), 120, 100);
     const memSpark = new Spark($('#mem-spark'), 120, 100);
@@ -648,6 +692,13 @@
     const fgCpuTextEl = document.getElementById('fg-cpu');
     const fgMemBar = document.getElementById('fg-mem-bar');
     const fgMemTextEl = document.getElementById('fg-mem');
+  const fgTopListEl = document.getElementById('fg-top-list');
+  // Disk UI extras
+  const diskActivityBar = document.getElementById('disk-activity-bar');
+  const diskActivityText = document.getElementById('disk-activity-text');
+  const diskTotalTextEl = document.getElementById('disk-total');
+  const diskRwRatioEl = document.getElementById('disk-rw-ratio');
+  const diskPeakTextEl = document.getElementById('disk-peak');
 
     let netList = [];
     let netIndex = 0;
@@ -657,6 +708,9 @@
     let latestTemps = [];
     let tempHighlights = [];
     let totalMemoryGb = 0;
+  // rolling history for disk total throughput (MB/s)
+  const diskHistory = [];
+  const diskHistoryCap = 120;
 
     setInterval(()=>{
       const d=new Date();
@@ -914,6 +968,26 @@ function renderTempMiniGrid(){
   tempMiniGridEl.innerHTML = html;
 }
 
+function formatDuration(totalSeconds){
+  totalSeconds = Math.max(0, Math.floor(totalSeconds||0));
+  const h = Math.floor(totalSeconds/3600);
+  const m = Math.floor((totalSeconds%3600)/60);
+  const s = totalSeconds%60;
+  const pad = n => n.toString().padStart(2,'0');
+  return h>0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+function renderTopForegroundApps(list){
+  if(!fgTopListEl) return;
+  const arr = Array.isArray(list) ? list.slice(0,3) : [];
+  if(arr.length === 0){ fgTopListEl.innerHTML = ''; return; }
+  fgTopListEl.innerHTML = arr.map(it => {
+    const name = it.displayTitle || it.name || '—';
+    const dur = formatDuration(it.totalSeconds || 0);
+    return `<div class="chip small"><span class="chip-label">累计</span><span class="chip-value">${dur}</span><span style="opacity:.6"> · </span><span class="mono">${name}</span></div>`;
+  }).join('');
+}
+
     window.updateMetrics = function(m){
       if(m.cpu){
         const usage = m.cpu.usage ?? 0;
@@ -1048,18 +1122,40 @@ function renderTempMiniGrid(){
         const w = m.disk.writeMBps ?? 0;
         setText('#disk-r', r.toFixed(1));
         setText('#disk-w', w.toFixed(1));
-        diskSpark.push(r + w);
+        const total = r + w;
+        diskSpark.push(total);
+        // update extras
+        if(diskTotalTextEl){ diskTotalTextEl.textContent = `${total.toFixed(1)} MB/s`; }
+        if(diskRwRatioEl){
+          if(total > 0){
+            const rp = Math.round((r/total)*100);
+            const wp = 100 - rp;
+            diskRwRatioEl.textContent = `${rp}% / ${wp}%`;
+          } else {
+            diskRwRatioEl.textContent = '—';
+          }
+        }
+        // maintain rolling peak
+        diskHistory.push(total);
+        if(diskHistory.length > diskHistoryCap) diskHistory.shift();
+        const peak = Math.max(0, ...diskHistory);
+        if(diskPeakTextEl){ diskPeakTextEl.textContent = `${peak.toFixed(1)} MB/s`; }
+        // activity percent vs rolling peak
+        const activity = peak > 0 ? clamp((total/peak)*100, 0, 100) : 0;
+        if(diskActivityBar){ setMeter(diskActivityBar, activity); }
+        if(diskActivityText){ diskActivityText.textContent = peak > 0 ? `${Math.round(activity)} %` : '— %'; }
       }
 
       if(m.foregroundApp){
         const app = m.foregroundApp;
-        fgAppNameEl.textContent = app.windowTitle || app.processName || '—';
-        fgProcessNameEl.textContent = app.processName || '—';
+        setTitleText(fgAppNameEl, app.windowTitle || app.processName || '—');
+        setChipText(fgProcessNameEl, app.processName || '—');
 
         const cpuUsage = app.cpuUsagePercentage ?? null;
         if(cpuUsage != null){
           fgCpuTextEl.textContent = `${cpuUsage.toFixed(1)} %`;
           setMeter(fgCpuBar, clamp(cpuUsage, 0, 100));
+          // no extra chips now
         } else {
           fgCpuTextEl.textContent = '— %';
           setMeter(fgCpuBar, 0);
@@ -1072,17 +1168,22 @@ function renderTempMiniGrid(){
           const denominatorMb = totalMemoryGb > 0 ? totalMemoryGb * 1024 : 8192;
           const memPct = clamp((memoryMb / denominatorMb) * 100, 0, 100);
           setMeter(fgMemBar, memPct);
+          // no extra chips now
         } else {
           fgMemTextEl.textContent = '— MB';
           setMeter(fgMemBar, 0);
         }
       } else {
-        fgAppNameEl.textContent = '—';
-        fgProcessNameEl.textContent = '—';
+        setTitleText(fgAppNameEl, '—');
+        setChipText(fgProcessNameEl, '—');
         fgCpuTextEl.textContent = '— %';
         fgMemTextEl.textContent = '— MB';
         setMeter(fgCpuBar, 0);
         setMeter(fgMemBar, 0);
+      }
+
+      if(Array.isArray(m.topForegroundApps)){
+        renderTopForegroundApps(m.topForegroundApps);
       }
 
       // const alerts=[];
@@ -1172,7 +1273,8 @@ function renderTempMiniGrid(){
           },
           temperatures: temps,
           temperatureHighlights: tempHighlightsData,
-          foregroundApp: snapshot.foregroundApp ?? null
+          foregroundApp: snapshot.foregroundApp ?? null,
+          topForegroundApps: Array.isArray(snapshot.topForegroundApps) ? snapshot.topForegroundApps : []
         });
       }catch(err){
         console.error('获取监控数据失败', err);

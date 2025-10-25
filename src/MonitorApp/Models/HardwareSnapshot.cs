@@ -18,6 +18,7 @@ public sealed record HardwareSnapshot
     public required NetworkSummary Network { get; init; }
     public required DiskSummary Disk { get; init; }
     public ForegroundAppMetrics? ForegroundApp { get; init; }
+    public IReadOnlyList<TopForegroundApp> TopForegroundApps { get; init; } = Array.Empty<TopForegroundApp>();
 }
 
 public sealed record CpuMetrics
@@ -95,4 +96,11 @@ public sealed record ForegroundAppMetrics
     public string? ProcessName { get; init; }
     public double? CpuUsagePercentage { get; init; }
     public double? MemoryUsageMb { get; init; }
+}
+
+public sealed record TopForegroundApp
+{
+    public required string Name { get; init; }
+    public string? DisplayTitle { get; init; }
+    public double TotalSeconds { get; init; }
 }
