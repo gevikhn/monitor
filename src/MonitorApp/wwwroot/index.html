@@ -231,10 +231,24 @@
       100%{ transform:translateX(-50%); }
     }
     /* Foreground app title marquee */
-    .title-text{ font-size:18px; font-weight:700; white-space:nowrap; overflow:hidden; }
+    .title-text{
+      font-size:18px;
+      font-weight:700;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      display:-webkit-box;
+      -webkit-box-orient:vertical;
+      -webkit-line-clamp:2;
+      line-clamp:2;
+      white-space:normal;
+      word-break:break-word;
+    }
     .title-text.marquee{ position:relative; }
     .title-text.marquee .marquee-track{ display:inline-flex; white-space:nowrap; animation: marquee 10s linear infinite; }
     .title-text.marquee .marquee-track span{ padding-right:32px; }
+  #fg-top-list{ min-width:0; }
+  #fg-top-list .chip{ max-width:100%; min-width:0; }
+  #fg-top-list .fg-chip-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
     .temp-card{
       --temp-card-base-height: 140px;
@@ -628,21 +642,14 @@
 
     function setTitleText(el, text){
       if(!el) return;
-      const value = (text || '—').toString();
+      const value = (text ?? '—').toString();
       el.classList.remove('marquee');
       el.textContent = value;
-      requestAnimationFrame(() => {
-        if(el.scrollWidth > el.clientWidth){
-          el.classList.add('marquee');
-          const track = document.createElement('div');
-          track.className = 'marquee-track';
-          const s1 = document.createElement('span'); s1.textContent = value;
-          const s2 = document.createElement('span'); s2.textContent = value;
-          track.appendChild(s1); track.appendChild(s2);
-          el.innerHTML = '';
-          el.appendChild(track);
-        }
-      });
+      if(value === '—'){
+        el.removeAttribute('title');
+      } else {
+        el.title = value;
+      }
     }
 
     const cpuSpark = new Spark($('#cpu-spark'), 120, 100);
@@ -980,12 +987,39 @@ function formatDuration(totalSeconds){
 function renderTopForegroundApps(list){
   if(!fgTopListEl) return;
   const arr = Array.isArray(list) ? list.slice(0,3) : [];
-  if(arr.length === 0){ fgTopListEl.innerHTML = ''; return; }
-  fgTopListEl.innerHTML = arr.map(it => {
+  fgTopListEl.innerHTML = '';
+  if(arr.length === 0){ return; }
+  const fragment = document.createDocumentFragment();
+  arr.forEach(it => {
     const name = it.displayTitle || it.name || '—';
     const dur = formatDuration(it.totalSeconds || 0);
-    return `<div class="chip small"><span class="chip-label">累计</span><span class="chip-value">${dur}</span><span style="opacity:.6"> · </span><span class="mono">${name}</span></div>`;
-  }).join('');
+
+    const chip = document.createElement('div');
+    chip.className = 'chip small';
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'chip-label';
+    labelSpan.textContent = '累计';
+
+    const valueSpan = document.createElement('span');
+    valueSpan.className = 'chip-value';
+    valueSpan.textContent = dur;
+
+    const separator = document.createElement('span');
+    separator.style.opacity = '.6';
+    separator.textContent = ' · ';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'mono fg-chip-name';
+    nameSpan.textContent = name;
+    if(name && name !== '—'){
+      nameSpan.title = name;
+    }
+
+    chip.append(labelSpan, valueSpan, separator, nameSpan);
+    fragment.appendChild(chip);
+  });
+  fgTopListEl.appendChild(fragment);
 }
 
     window.updateMetrics = function(m){
