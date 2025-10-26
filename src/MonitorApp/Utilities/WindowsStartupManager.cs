@@ -17,7 +17,7 @@ internal static class WindowsStartupManager
             return false;
         }
 
-        using var key = Registry.CurrentUser.OpenSubKey(RunRegistryPath, writable: false);
+        using var key = OpenRunRegistryKey(writable: false);
         if (key is null)
         {
             return false;
@@ -39,7 +39,7 @@ internal static class WindowsStartupManager
             throw new PlatformNotSupportedException("开机自启动仅支持在 Windows 平台上启用。");
         }
 
-        using var key = Registry.CurrentUser.CreateSubKey(RunRegistryPath, writable: true)
+        using var key = CreateRunRegistryKey()
                        ?? throw new InvalidOperationException("无法访问注册表 Run 节点。");
 
         key.SetValue(ValueName, GetExecutableCommand());
@@ -52,7 +52,7 @@ internal static class WindowsStartupManager
             return;
         }
 
-        using var key = Registry.CurrentUser.OpenSubKey(RunRegistryPath, writable: true);
+        using var key = OpenRunRegistryKey(writable: true);
         key?.DeleteValue(ValueName, throwOnMissingValue: false);
     }
 
@@ -79,5 +79,19 @@ internal static class WindowsStartupManager
         }
 
         return trimmed;
+    }
+
+    private static RegistryKey? OpenRunRegistryKey(bool writable)
+    {
+        var view = Environment.Is64BitOperatingSystem ? RegistryView.Registry64 : RegistryView.Registry32;
+        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+        return baseKey.OpenSubKey(RunRegistryPath, writable);
+    }
+
+    private static RegistryKey? CreateRunRegistryKey()
+    {
+        var view = Environment.Is64BitOperatingSystem ? RegistryView.Registry64 : RegistryView.Registry32;
+        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+        return baseKey.CreateSubKey(RunRegistryPath, writable: true);
     }
 }

@@ -422,7 +422,7 @@
               </div>
               <div class="chip small" id="mem-virtual-chip">
                 <span class="chip-label">虚拟内存总量</span>
-                <span class="chip-value mono" id="mem-virtual-total">-- GB</span>
+                <span class="chip-value mono" id="mem-virtual-total">-- MB</span>
               </div>
               <div class="chip small" id="mem-pressure-chip">
                 <span class="chip-label">压力状态</span>
@@ -1053,7 +1053,7 @@ function renderTopForegroundApps(list){
         setText('#mem-speed', speed != null ? `${Math.round(speed)} MHz` : '-- MHz');
 
         const virtualTotal = typeof m.mem.virtualTotalGb === 'number' && !Number.isNaN(m.mem.virtualTotalGb) ? m.mem.virtualTotalGb : null;
-        setText('#mem-virtual-total', virtualTotal != null ? `${virtualTotal.toFixed(1)} GB` : '-- GB');
+        setText('#mem-virtual-total', virtualTotal != null ? `${virtualTotal.toFixed(1)} MB` : '-- MB');
 
         if(memPressureEl){
           let pressureLabel = '--';
@@ -1088,7 +1088,7 @@ function renderTopForegroundApps(list){
           if(span) span.textContent = '--';
         }
         setText('#mem-speed', '-- MHz');
-        setText('#mem-virtual-total', '-- GB');
+        setText('#mem-virtual-total', '-- MB');
         if(memPressureEl){
           memPressureEl.textContent = '--';
         }
