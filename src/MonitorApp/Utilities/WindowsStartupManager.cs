@@ -1,12 +1,14 @@
 using System;
-using Microsoft.Win32;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Xml.Linq;
 
 namespace MonitorApp.Utilities;
 
 internal static class WindowsStartupManager
 {
-    private const string RunRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "MonitorApp";
+    private const string TaskName = "MonitorApp_AutoStart";
 
     public static bool IsSupported => OperatingSystem.IsWindows();
 
@@ -17,19 +19,40 @@ internal static class WindowsStartupManager
             return false;
         }
 
-        using var key = OpenRunRegistryKey(writable: false);
-        if (key is null)
+        var (exitCode, standardOutput, _) = RunSchtasks("/Query", "/TN", TaskName, "/XML");
+        if (exitCode != 0 || string.IsNullOrWhiteSpace(standardOutput))
         {
             return false;
         }
 
-        var configuredValue = key.GetValue(ValueName) as string;
-        if (string.IsNullOrWhiteSpace(configuredValue))
+        try
+        {
+            var document = XDocument.Parse(standardOutput);
+            var ns = document.Root?.Name.Namespace;
+            if (ns is null)
+            {
+                return false;
+            }
+
+            var commandElement = document
+                .Descendants(ns + "Exec")
+                .Select(exec => exec.Element(ns + "Command"))
+                .FirstOrDefault(element => element is not null);
+
+            if (commandElement is null)
+            {
+                return false;
+            }
+
+            return string.Equals(
+                NormalizePath(commandElement.Value),
+                NormalizePath(GetExecutablePath()),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch
         {
             return false;
         }
-
-        return string.Equals(Normalize(configuredValue), Normalize(GetExecutableCommand()), StringComparison.OrdinalIgnoreCase);
     }
 
     public static void Enable()
@@ -39,10 +62,18 @@ internal static class WindowsStartupManager
             throw new PlatformNotSupportedException("开机自启动仅支持在 Windows 平台上启用。");
         }
 
-        using var key = CreateRunRegistryKey()
-                       ?? throw new InvalidOperationException("无法访问注册表 Run 节点。");
+        var (exitCode, _, errorOutput) = RunSchtasks(
+            "/Create",
+            "/F",
+            "/SC", "ONLOGON",
+            "/RL", "HIGHEST",
+            "/TN", TaskName,
+            "/TR", QuoteIfNeeded(GetExecutablePath()));
 
-        key.SetValue(ValueName, GetExecutableCommand());
+        if (exitCode != 0)
+        {
+            throw new InvalidOperationException($"无法创建开机自启动任务：{errorOutput.Trim()}".Trim());
+        }
     }
 
     public static void Disable()
@@ -52,11 +83,10 @@ internal static class WindowsStartupManager
             return;
         }
 
-        using var key = OpenRunRegistryKey(writable: true);
-        key?.DeleteValue(ValueName, throwOnMissingValue: false);
+        RunSchtasks("/Delete", "/TN", TaskName, "/F");
     }
 
-    private static string GetExecutableCommand()
+    private static string GetExecutablePath()
     {
         var processPath = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(processPath))
@@ -64,34 +94,38 @@ internal static class WindowsStartupManager
             throw new InvalidOperationException("无法识别当前进程路径。");
         }
 
-        return QuoteIfNeeded(processPath);
+        return processPath;
     }
 
     private static string QuoteIfNeeded(string path)
         => path.Contains(' ', StringComparison.Ordinal) ? $"\"{path}\"" : path;
 
-    private static string Normalize(string command)
+    private static string NormalizePath(string path)
+        => Path.GetFullPath(path.Trim().Trim('"'));
+
+    private static (int ExitCode, string StandardOutput, string StandardError) RunSchtasks(params string[] arguments)
     {
-        var trimmed = command.Trim();
-        if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"')
+        var startInfo = new ProcessStartInfo
         {
-            trimmed = trimmed[1..^1];
+            FileName = "schtasks",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
         }
 
-        return trimmed;
-    }
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("无法调用 schtasks.exe。");
 
-    private static RegistryKey? OpenRunRegistryKey(bool writable)
-    {
-        var view = Environment.Is64BitOperatingSystem ? RegistryView.Registry64 : RegistryView.Registry32;
-        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
-        return baseKey.OpenSubKey(RunRegistryPath, writable);
-    }
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
 
-    private static RegistryKey? CreateRunRegistryKey()
-    {
-        var view = Environment.Is64BitOperatingSystem ? RegistryView.Registry64 : RegistryView.Registry32;
-        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
-        return baseKey.CreateSubKey(RunRegistryPath, writable: true);
+        return (process.ExitCode, standardOutput, standardError);
     }
 }
