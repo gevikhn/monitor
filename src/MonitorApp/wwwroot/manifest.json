@@ -1,0 +1,20 @@
+{
+  "name": "系统监控",
+  "short_name": "监控",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "display": "standalone",
+  "description": "实时系统监控仪表板",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 480
+  }
+}

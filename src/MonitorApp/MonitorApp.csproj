@@ -23,8 +23,24 @@
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
       <ExcludeFromSingleFile>false</ExcludeFromSingleFile>
     </Content>
+    <Content Update="wwwroot\manifest.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>false</ExcludeFromSingleFile>
+    </Content>
+      <Content Update="wwwroot\favicon.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>false</ExcludeFromSingleFile>
+    </Content>
     <EmbeddedResource Include="wwwroot\index.html">
       <LogicalName>wwwroot/index.html</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="wwwroot\manifest.json">
+      <LogicalName>wwwroot/manifest.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="wwwroot\favicon.png">
+      <LogicalName>wwwroot/favicon.png</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

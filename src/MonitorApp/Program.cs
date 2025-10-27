@@ -40,26 +40,48 @@ if (OperatingSystem.IsWindows())
 
 var assembly = Assembly.GetExecutingAssembly();
 const string indexResource = "wwwroot/index.html";
-string indexHtml;
-await using (var stream = assembly.GetManifestResourceStream(indexResource))
-{
-    if (stream is null)
-    {
-        throw new FileNotFoundException($"Embedded resource was not found: {indexResource}");
-    }
+const string manifestResource = "wwwroot/manifest.json";
+const string iconResource = "wwwroot/favicon.png";
 
-    using var reader = new StreamReader(stream);
-    indexHtml = await reader.ReadToEndAsync();
-}
+var indexHtml = await LoadEmbeddedStringAsync(indexResource);
+var manifestJson = await LoadEmbeddedStringAsync(manifestResource);
+var iconPng = await LoadEmbeddedBytesAsync(iconResource);
 
 app.MapGet("/", () => Results.Content(indexHtml, "text/html; charset=utf-8"));
 app.MapGet("/index.html", () => Results.Content(indexHtml, "text/html; charset=utf-8"));
+app.MapGet("/manifest.json", () => Results.Content(manifestJson, "application/manifest+json; charset=utf-8"));
+app.MapGet("/favicon.png", () => Results.File(iconPng, "image/png"));
 
 app.MapGet("/api/metrics", (HardwareMonitorService monitor) =>
 {
     var snapshot = monitor.GetSnapshot();
     return Results.Json(snapshot);
 });
+
+async Task<string> LoadEmbeddedStringAsync(string resourceName)
+{
+    await using var stream = assembly.GetManifestResourceStream(resourceName);
+    if (stream is null)
+    {
+        throw new FileNotFoundException($"Embedded resource was not found: {resourceName}");
+    }
+
+    using var reader = new StreamReader(stream);
+    return await reader.ReadToEndAsync();
+}
+
+async Task<byte[]> LoadEmbeddedBytesAsync(string resourceName)
+{
+    await using var stream = assembly.GetManifestResourceStream(resourceName);
+    if (stream is null)
+    {
+        throw new FileNotFoundException($"Embedded resource was not found: {resourceName}");
+    }
+
+    using var buffer = new MemoryStream();
+    await stream.CopyToAsync(buffer);
+    return buffer.ToArray();
+}
 
 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 
