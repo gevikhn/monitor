@@ -3,365 +3,327 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <meta name="theme-color" content="#0b0f14" />
+  <meta name="theme-color" content="#050505" />
   <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
   <title>系统监控</title>
   <link rel="manifest" href="manifest.json" />
+  <link href="css/inter.css" rel="stylesheet">
+  <link href="css/remixicon.css" rel="stylesheet">
   <style>
-    :root{
-      --bg: #0b0f14;
-      --card: #121823;
-      --muted: #7c8aa0;
-      --text: #e8eef7;
-      --accent: #29b6f6;
-      --accent2:#ff6e40;
-      --accent3:#8bc34a;
-      --good: #7dd87d;
-      --warn: #ffcc00;
-      --bad:  #ff5a5f;
-      --grid: rgba(255,255,255,.06);
-      --chip: #1a2332;
+    :root {
+      --bg: #050505;
+      --card-bg: rgba(20, 30, 45, 0.6);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #ffffff;
+      --text-muted: #94a3b8;
+      --accent-primary: #00f2ff;
+      --accent-secondary: #ff8c00;
+      --accent-tertiary: #00e676;
+      --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
+      --grid-line: rgba(255, 255, 255, 0.06);
+      --chip-bg: rgba(255, 255, 255, 0.05);
+      --good: #00e676;
+      --warn: #ffea00;
+      --bad: #ff1744;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, PingFang SC, Noto Sans CJK, Helvetica, Arial, "Microsoft Yahei", sans-serif;
-      background: radial-gradient(1200px 800px at 50% -10%, #132033, var(--bg));
-      color:var(--text);
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #1a2c4e, var(--bg) 80%);
+      color: var(--text-main);
+      overflow: hidden;
     }
-    .app{
-      min-width: min(720px, 70vw);
-      min-height: 100vh;
-      margin: 0 auto;
-      padding: 18px;
+    .app {
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 18px;
-      overflow-y: auto;
+      gap: 24px;
       scrollbar-width: thin;
-      scrollbar-color: var(--accent) transparent;
+      scrollbar-color: var(--accent-primary) transparent;
+      max-width: 1600px;
+      margin: 0 auto;
     }
-    .app::-webkit-scrollbar{width:10px}
-    .app::-webkit-scrollbar-track{background:rgba(255,255,255,.04); border-radius:999px}
-    .app::-webkit-scrollbar-thumb{
-      background:linear-gradient(180deg, var(--accent), #1f9ad6);
-      border-radius:999px;
-      border:1px solid var(--grid);
+    .app::-webkit-scrollbar { width: 8px; }
+    .app::-webkit-scrollbar-track { background: transparent; }
+    .app::-webkit-scrollbar-thumb {
+      background: var(--accent-primary);
+      border-radius: 99px;
     }
-    .app::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg, #29c3ff, #1c8fc7)}
-    header{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:10px 12px; background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-      border: 1px solid var(--grid); border-radius:14px;
-      backdrop-filter: blur(6px);
+    
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: var(--glass-shadow);
     }
-    .title{font-weight:600; letter-spacing:.2px}
-    .subtitle{color:var(--muted); font-size:12px}
-    .content{
-      flex:1;
-      display:flex;
-      gap:18px;
-      min-height:0;
-    }
-    .grid{
-      flex:1;
-      display:grid;
-      gap:18px;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      grid-auto-rows:auto;
-      align-content:start;
-    }
-    .card{
-      background: var(--card);
-      border:1px solid var(--grid);
-      border-radius:16px;
-      padding:18px;
-      display:flex; flex-direction:column; gap:14px;
-      box-shadow: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
-      /* height:260px; */
-      position:relative;
-      overflow:hidden;
-    }
-    .card-content{
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      flex:1 0 auto;
-    }
-    .card-content{
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      flex:1 0 auto;
-    }
-    .card-content{
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      flex:1 0 auto;
-    }
-    .card.span-2{grid-column: span 2}
-    .row{display:flex; align-items:center; gap:10px; flex-wrap:nowrap}
-    .grow{flex:1}
-    .label{color:var(--muted); font-size:12px}
-    .value{font-weight:700; font-size:22px}
-    .unit{opacity:.8; font-size:12px}
-    .mono{font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1}
-    .chip{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:10px; background:var(--chip); color:#cbd8ea; font-size:12px; border:1px solid var(--grid)}
-    .chip.small{font-size:11px; padding:3px 6px}
-    .chip-row{display:flex; flex-wrap:wrap; gap:8px}
-    .chip-label{opacity:.72; letter-spacing:.2px; font-size:11px}
-    .chip-value{font-weight:600}
-    .chip.small .chip-value{font-size:12px}
-    .chip.good{background:rgba(125,216,125,.16); border-color:rgba(125,216,125,.45); color:var(--good)}
-    .chip.warn{background:rgba(255,204,0,.16); border-color:rgba(255,204,0,.45); color:var(--warn)}
-    .chip.bad{background:rgba(255,90,95,.16); border-color:rgba(255,90,95,.45); color:var(--bad)}
+    .title { font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+    .subtitle { color: var(--text-muted); font-size: 13px; font-weight: 500; }
 
-    .ring{ --p:0; --col: var(--accent);
-      width:72px; height:72px; border-radius:50%; position:relative;
-      background: conic-gradient(var(--col) calc(var(--p)*1%), rgba(255,255,255,.06) 0);
-      display:grid; place-items:center;
-      flex-shrink:0;
+    /* Grid */
+    .content { flex: 1 0 auto; display: flex; gap: 24px; }
+    .grid {
+      flex: 1;
+      display: grid;
+      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      align-content: start;
+      grid-auto-flow: dense;
     }
-    .ring::before{content:""; position:absolute; inset:6px; background:var(--card); border-radius:50%}
-    .ring span{ position:relative; font-weight:800; font-size:16px }
+    
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: var(--glass-shadow);
+      backdrop-filter: blur(12px);
+      transition: transform 0.3s ease, border-color 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    .card.span-2 { grid-column: span 2; }
 
-    .meter{height:10px; background:linear-gradient(180deg,#0c141f,#0a111a); border:1px solid var(--grid); border-radius:999px; overflow:hidden}
-    .meter>i{display:block; height:100%; width:40%; background:linear-gradient(90deg,var(--accent),#42a5f5);}
+    /* Typography & Components */
+    .row { display: flex; align-items: flex-start; gap: 16px; }
+    .grow { flex: 1; min-width: 0; }
+    .label { color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.5; }
+    .value { font-weight: 700; font-size: 28px; letter-spacing: -1px; line-height: 1.2; }
+    .unit { font-size: 14px; opacity: 0.7; font-weight: 500; }
+    .mono { font-family: 'Inter', monospace; font-variant-numeric: tabular-nums; }
+    
+    /* Icons */
+    .icon {
+      width: 48px; height: 48px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      display: grid; place-items: center;
+      flex-shrink: 0;
+      font-size: 24px;
+      color: var(--accent-primary);
+      opacity: 0.9;
+    }
+    
+    /* Chips */
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px;
+      border-radius: 99px;
+      background: var(--chip-bg);
+      border: 1px solid var(--card-border);
+      font-size: 13px;
+      color: var(--text-main);
+    }
+    .chip.small { font-size: 12px; padding: 4px 10px; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .chip-label { color: var(--text-muted); margin-right: 4px; }
+    .chip-value { font-weight: 600; }
+    .chip.good { background: rgba(0, 230, 118, 0.1); border-color: rgba(0, 230, 118, 0.3); color: var(--good); }
+    .chip.warn { background: rgba(255, 234, 0, 0.1); border-color: rgba(255, 234, 0, 0.3); color: var(--warn); }
+    .chip.bad { background: rgba(255, 23, 68, 0.1); border-color: rgba(255, 23, 68, 0.3); color: var(--bad); }
 
-    .kv{display:grid; grid-template-columns:auto 1fr auto; gap:6px 10px; align-items:center; font-size:13px}
-    .divider{height:1px; background:var(--grid); margin:4px 0}
+    /* Rings & Meters */
+    .ring {
+      --p: 0; --col: var(--accent-primary);
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      position: relative;
+      background: conic-gradient(var(--col) calc(var(--p)*1%), rgba(255,255,255,0.05) 0);
+      display: grid; place-items: center;
+      flex-shrink: 0;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+      align-self: center;
+    }
+    .ring::before {
+      content: ""; position: absolute; inset: 8px;
+      background: #131b29; /* Darker inner circle to simulate hole */
+      border-radius: 50%;
+    }
+    .ring span { position: relative; font-weight: 700; font-size: 18px; }
 
-    canvas.spark{ width:100%; height:56px; background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02)); border-radius:12px; border:1px solid var(--grid); margin-top:auto; display:block; flex:0 0 auto}
+    .meter {
+      height: 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .meter > i {
+      display: block; height: 100%; width: 0;
+      background: var(--accent-primary);
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 10px var(--accent-primary);
+    }
 
-    footer{display:flex; justify-content:space-between; align-items:center; color:var(--muted); font-size:12px}
+    .kv { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 16px; align-items: center; font-size: 13px; }
+    
+    /* Canvas */
+    canvas.spark {
+      width: 100%; height: 64px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 16px;
+      border: 1px solid var(--card-border);
+      margin-top: auto;
+      display: block;
+    }
 
-    /* .alerts-panel{
-      width: clamp(240px, 28vw, 320px);
-      display:flex;
-      flex-direction:column;
-      gap:14px;
-    } */
-    .panel-card{
-      background: var(--card);
-      border:1px solid var(--grid);
-      border-radius:16px;
-      padding:16px;
-      box-shadow: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      min-height:190px;
+    /* Footer */
+    footer {
+      display: flex; justify-content: space-between; align-items: center;
+      color: var(--text-muted); font-size: 12px;
+      padding: 0 12px;
     }
-    .panel-title{font-weight:600; font-size:16px; letter-spacing:.4px}
-    .panel-subtitle{color:var(--muted); font-size:12px}
-    .alert-body{display:flex; flex-direction:column; gap:8px; flex:1;}
-    .alert-empty{color:var(--muted); font-size:12px;}
-    .alert-chip{
-      display:flex; align-items:center; gap:6px;
-      padding:6px 10px;
-      border-radius:10px;
-      background:rgba(255,90,95,.08);
-      border:1px solid rgba(255,90,95,.35);
-      color:#ffd7d9;
-      font-size:12px;
-    }
-    /* .alerts-panel:not(.has-alerts) .panel-card{
-      opacity:.7;
-    } */
 
-    .gpu-ring-wrap{
-      width:72px;
-      height:72px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      flex-shrink:0;
+    /* Specific Components */
+    .gpu-button {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text-main);
+      display: grid; place-items: center;
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    .gpu-name-switch{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      margin-top:6px;
-      min-width:0;
+    .gpu-button:hover:not(:disabled) {
+      background: var(--accent-primary);
+      color: #000;
+      box-shadow: 0 0 12px var(--accent-primary);
     }
-    .gpu-name-switch .chip{
-      min-width:0;
-      flex:1 1 auto;
-    }
-    .gpu-button{
-      width:26px;
-      height:26px;
-      border-radius:8px;
-      border:1px solid var(--grid);
-      background:rgba(255,255,255,.08);
-      color:var(--text);
-      display:grid;
-      place-items:center;
-      cursor:pointer;
-      padding:0;
-      font-size:14px;
-      transition:background .2s ease, border-color .2s ease, color .2s ease;
-      flex:0 0 auto;
-    }
-    .gpu-button:hover:not(:disabled){
-      background:rgba(41,182,246,.16);
-      border-color:rgba(41,182,246,.45);
-      color:var(--accent);
-    }
-    .gpu-button:disabled{
-      opacity:.3;
-      cursor:default;
-    }
-    .gpu-ring-wrap .ring{ width:72px; height:72px; }
-
-    .name-chip{
-      max-width:200px;
-      overflow:hidden;
-      min-width:0;
-    }
-    .name-chip.gpu-name{ max-width:240px; }
-    .name-chip span{ display:inline-block; white-space:nowrap; }
-    .name-chip.marquee{ position:relative; }
-    .name-chip.marquee .marquee-track{
-      display:inline-flex;
-      white-space:nowrap;
-      animation: marquee 8s linear infinite;
-    }
-    .name-chip.marquee .marquee-track span{ padding-right:24px; }
-    @keyframes marquee{
-      0%{ transform:translateX(0); }
-      100%{ transform:translateX(-50%); }
-    }
+    .gpu-button:disabled { opacity: 0.3; cursor: not-allowed; }
+    
+    .gpu-name-switch { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+    .gpu-ring-wrap { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .gpu-ring-wrap .ring { width: 80px; height: 80px; }
+    
+    /* Marquee */
+    .name-chip { max-width: 180px; overflow: hidden; white-space: nowrap; min-width: 0; }
+    .name-chip.marquee { position: relative; }
+    .name-chip.marquee .marquee-track { display: inline-flex; animation: marquee 10s linear infinite; }
+    .name-chip.marquee .marquee-track span { padding-right: 24px; }
+    @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+    
     /* Foreground app title marquee */
-    .title-text{
-      font-size:18px;
-      font-weight:700;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      display:-webkit-box;
-      -webkit-box-orient:vertical;
-      -webkit-line-clamp:2;
-      line-clamp:2;
-      white-space:normal;
-      word-break:break-word;
+    .title-text {
+      font-size: 18px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      white-space: normal;
+      word-break: break-word;
     }
-    .title-text.marquee{ position:relative; }
-    .title-text.marquee .marquee-track{ display:inline-flex; white-space:nowrap; animation: marquee 10s linear infinite; }
-    .title-text.marquee .marquee-track span{ padding-right:32px; }
-  #fg-top-list{ min-width:0; }
-  #fg-top-list .chip{ max-width:100%; min-width:0; }
-  #fg-top-list .fg-chip-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .title-text.marquee { position: relative; }
+    .title-text.marquee .marquee-track { display: inline-flex; white-space: nowrap; animation: marquee 10s linear infinite; }
+    .title-text.marquee .marquee-track span { padding-right: 32px; }
+    #fg-top-list { min-width: 0; }
+    #fg-top-list .chip { max-width: 100%; min-width: 0; }
+    #fg-top-list .fg-chip-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    .temp-card{
+    /* Temp Card */
+    .temp-card {
       --temp-card-base-height: 140px;
       min-height: var(--temp-card-base-height);
-      transition:min-height .3s ease;
+      transition: min-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .temp-card.expanded{
-      min-height: calc(var(--temp-card-base-height) * 2);
+    .temp-card.expanded { min-height: calc(var(--temp-card-base-height) * 2); }
+    .temp-card .temp-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .temp-highlights { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    
+    .temp-toggle {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
     }
-    .temp-card .temp-header{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
+    .temp-toggle:hover { background: rgba(255,255,255,0.1); }
+    
+    .temp-chip {
+      background: linear-gradient(135deg, rgba(0, 242, 255, 0.1), rgba(0,0,0,0));
+      border: 1px solid rgba(0, 242, 255, 0.2);
+      border-radius: 16px;
+      padding: 12px;
+      min-width: 100px;
+      display: flex; flex-direction: column; gap: 4px;
     }
-    .temp-highlights{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      margin-top:6px;
+    .temp-chip .label { font-size: 11px; color: var(--text-muted); }
+    .temp-chip .value { font-size: 18px; font-weight: 600; }
+    
+    .temp-list-wrapper {
+      margin-top: 16px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 16px;
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.4s ease;
     }
-    /* Mini temperature grid shown when collapsed */
-    .temp-mini-grid{
-      display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap:8px;
-      margin-top:10px;
+    .temp-card.expanded .temp-list-wrapper { max-height: 400px; }
+    .temp-list { padding: 12px; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 380px; }
+    .temp-item {
+      display: flex; justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      font-size: 13px;
+      border: 1px solid var(--card-border);
     }
-    .temp-card.expanded .temp-mini-grid{ display:none }
-    .mini-chip{
-      display:flex; flex-direction:column; gap:6px;
-      padding:8px 10px; border-radius:10px;
-      background:rgba(255,255,255,.04);
-      border:1px solid var(--grid);
-      min-width:0; /* allow shrink */
+    
+    /* Mini Temp Grid */
+    .temp-mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 10px; }
+    .temp-card.expanded .temp-mini-grid { display: none; }
+    .mini-chip {
+      display: flex; flex-direction: column; gap: 6px;
+      padding: 8px 10px; border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--card-border);
+      min-width: 0;
     }
-    .mini-chip .label{ font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-    .mini-chip .value{ font-size:16px; font-weight:700 }
-    .mini-chip.good{ background:rgba(125,216,125,.10); border-color:rgba(125,216,125,.35) }
-    .mini-chip.warn{ background:rgba(255,204,0,.10); border-color:rgba(255,204,0,.35) }
-    .mini-chip.bad{  background:rgba(255,90,95,.10); border-color:rgba(255,90,95,.35) }
-    .mini-bar{ height:6px; border-radius:999px; background:linear-gradient(180deg,#0c141f,#0a111a); border:1px solid var(--grid); overflow:hidden }
-    .mini-bar>i{ display:block; height:100%; width:40%; background:linear-gradient(90deg,#58a6ff,#ff8a65) }
-    .temp-chip{
-      display:flex;
-      flex-direction:column;
-      gap:4px;
-      padding:8px 10px;
-      border-radius:12px;
-      background:linear-gradient(160deg, rgba(41,182,246,.18), rgba(12,18,27,.6));
-      border:1px solid rgba(41,182,246,.35);
-      min-width:110px;
-    }
-    .temp-chip .label{font-size:11px; color:var(--muted)}
-    .temp-chip .value{font-size:18px; font-weight:600}
-    .temp-toggle{
-      border:1px solid var(--grid);
-      background:rgba(255,255,255,.04);
-      color:var(--text);
-      font-size:12px;
-      border-radius:8px;
-      padding:4px 10px;
-      cursor:pointer;
-      align-self:flex-start;
-    }
-    .temp-list-wrapper{
-      margin-top:12px;
-      border:1px solid var(--grid);
-      border-radius:12px;
-      background:rgba(255,255,255,.03);
-      overflow:hidden;
-      max-height:0;
-      transition:max-height .3s ease;
-    }
-    .temp-card.expanded .temp-list-wrapper{
-      max-height:360px;
-    }
-    .temp-list{
-      list-style:none;
-      margin:0;
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      max-height:336px;
-      overflow:auto;
-    }
-    .temp-item{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      font-size:13px;
-      padding:6px 8px;
-      border-radius:8px;
-      background:rgba(255,255,255,.04);
-      border:1px solid var(--grid);
-    }
+    .mini-chip .label { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mini-chip .value { font-size: 16px; font-weight: 700; }
+    .mini-chip.good { background: rgba(0, 230, 118, 0.1); border-color: rgba(0, 230, 118, 0.3); }
+    .mini-chip.warn { background: rgba(255, 234, 0, 0.1); border-color: rgba(255, 234, 0, 0.3); }
+    .mini-chip.bad { background: rgba(255, 23, 68, 0.1); border-color: rgba(255, 23, 68, 0.3); }
+    .mini-bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.1); overflow: hidden; }
+    .mini-bar > i { display: block; height: 100%; width: 40%; background: linear-gradient(90deg, #58a6ff, #ff8a65); }
 
-    .icon{ width:64px; height:64px; opacity:.9 }
-
-    @media (max-width: 1100px){
-      .app{padding:16px}
-      .content{flex-direction:column;}
-      /* .alerts-panel{width:100%; flex-direction:row;} */
-      .panel-card{flex:1; min-height:auto;}
-      .grid{ grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    /* Responsive */
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+      .content { flex-direction: column; }
+      .panel-card { flex: 1; min-height: auto; }
     }
-    @media (max-width: 900px){
-      .grid{ grid-template-columns: minmax(0, 1fr); }
-      .card.span-2{ grid-column: span 1; }
+    @media (max-width: 768px) {
+      .app { padding: 16px; gap: 16px; }
+      .grid { grid-template-columns: 1fr; }
+      .card.span-2 { grid-column: span 1; }
+      .row { flex-wrap: wrap; }
     }
   </style>
 </head>
@@ -380,7 +342,7 @@
         <section class="card span-2">
           <div class="card-content">
             <div class="row">
-               <svg fill="currentColor" t="1761318930160" class="icon" viewBox="0 0 1099 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4952" id="mx_n_1761318930161" data-darkreader-inline-fill="" width="256" height="256"><path d="M906.26 398 906.26 337.2l-72.1 0.2 0-94.3c0-23.9-12.3-37.3-36.2-37.3l-86.9 0 0-73.8-61.5 0 0 73.8-92.4 0L557.16 132l-61.5 0-0.1 73.8L403.16 205.8l0.2-73.8-61.8 0 0.1 73.8-80.9 0c-29.7 0-41.9 13.4-41.7 44.4l-0.6 87.2-73.4 0L145.06 398l73.4 0 0 84.9-73.4-0.1 0 61.5 73.4 0.2 0 86.2-73.4 0 0 60.4 73.4 0 0 82.4c0 34 13.7 48.1 47.8 48.1l75.4 0-0.1 70.8 61.4 0 0.3-70.8 92.4 0 0 70.8 61.7 0-0.1-70.8 92.4 0-0.2 70.8 61.7 0 0.1-70.8 82.3 0c27.6 0 40.8-24.3 40.8-48.1l0-82.4 72.1 0 0-60.4L834.16 630.7l0-86.2 72.1 0 0-61.4-72.1-0.2L834.16 398 906.26 398zM772.56 760 280.06 760 280.06 267.4l492.6 0L772.66 760zM382.96 682.3l295.8 0c11.8 0 16.1-8.1 16.1-18.8L694.86 367c0-12.6-8.6-19.6-18.8-19.6L379.86 347.4c-15.4 0-19.9 5.7-19.9 21.2l0 290.6C359.96 674.6 367.56 682.3 382.96 682.3z" p-id="4953"></path></svg>
+               <i class="ri-cpu-line icon"></i>
               <div class="grow">
                 <div class="label">CPU</div>
                 <div class="value mono" id="cpu-usage">0%</div>
@@ -399,8 +361,7 @@
         <section class="card span-2" id="gpu-card">
           <div class="card-content">
             <div class="row">
-              <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v12H4zM2 8h2v8H2zM20 8h2v8h-2zM8 4h8v2H8zM8 20h8v-2H8z"/></svg> -->
-              <svg fill="currentColor" t="1761319215231" class="icon" viewBox="0 0 1874 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="9892" data-darkreader-inline-fill="" width="256" height="256" style="transform: rotate(90deg); transform-origin: center; transform-box: fill-box;"><path d="M158.647887 28.84507c8.653521 0 14.422535 5.769014 14.422536 14.422536v937.464788c0 8.653521-5.769014 14.422535-14.422536 14.422536s-14.422535-5.769014-14.422535-14.422536V43.267606c0-8.653521 5.769014-14.422535 14.422535-14.422536z" p-id="9893"></path><path d="M158.647887 187.492958H72.112676v144.225352h86.535211z" p-id="9894"></path><path d="M158.647887 346.140845H72.112676c-8.653521 0-14.422535-5.769014-14.422535-14.422535V187.492958c0-8.653521 5.769014-14.422535 14.422535-14.422535h86.535211c8.653521 0 14.422535 5.769014 14.422536 14.422535v144.225352c0 8.653521-5.769014 14.422535-14.422536 14.422535z m-72.112676-28.84507h57.690141v-115.380282H86.535211v115.380282z" p-id="9895"></path><path d="M158.647887 692.28169H72.112676v144.225352h86.535211z" p-id="9896"></path><path d="M158.647887 850.929577H72.112676c-8.653521 0-14.422535-5.769014-14.422535-14.422535V692.28169c0-8.653521 5.769014-14.422535 14.422535-14.422535h86.535211c8.653521 0 14.422535 5.769014 14.422536 14.422535v144.225352c0 8.653521-5.769014 14.422535-14.422536 14.422535z m-72.112676-28.84507h57.690141v-115.380282H86.535211v115.380282z" p-id="9897"></path><path d="M807.661972 204.8h291.335211l-74.997183 72.112676-36.056338 18.749296H937.464789l-40.383099-7.211268-57.690141-50.478873zM807.661972 814.873239h291.335211l-74.997183-72.112676-36.056338-18.749295H937.464789l-40.383099 8.653521-57.690141 49.036619z" p-id="9898"></path><path d="M807.661972 190.377465h291.335211v28.84507H807.661972z" p-id="9899"></path><path d="M1616.766197 894.197183H1205.723944c-25.960563 0-49.03662-10.095775-67.785916-25.960563l-131.24507-121.149296c-8.653521-7.211268-18.749296-11.538028-28.845071-11.538028h-41.825352c-10.095775 0-20.191549 4.326761-28.84507 10.095774L778.816901 858.140845c-25.960563 23.076056-60.574648 36.056338-95.188732 36.056338H158.647887v-28.84507h524.980282c27.402817 0 54.805634-10.095775 76.439437-28.845071l126.918309-112.495774c12.980282-11.538028 30.287324-17.307042 47.594367-17.307043h41.825352c18.749296 0 36.056338 7.211268 49.03662 18.749296l131.24507 121.149296c12.980282 11.538028 30.287324 18.749296 49.03662 18.749296h411.042253c23.076056 0 46.152113-8.653521 64.901409-23.076057l64.901408-53.36338c25.960563-21.633803 41.825352-54.805634 41.825352-89.419718v-389.408451c0-20.191549-8.653521-40.383099-24.51831-54.805634l-82.20845-72.112676c-18.749296-15.864789-41.825352-24.51831-66.343662-24.51831H1204.28169c-17.307042 0-34.614085 7.211268-47.594366 18.749296L1024 295.661972c-12.980282 11.538028-30.287324 18.749296-47.594366 18.749296h-43.267606c-17.307042 0-34.614085-5.769014-47.594366-17.307043L758.625352 187.492958c-20.191549-18.749296-47.594366-28.84507-74.997183-28.845071H158.647887V129.802817h524.980282c34.614085 0 67.785915 12.980282 93.746479 34.614084l126.91831 109.611268c7.211268 7.211268 17.307042 10.095775 28.84507 10.095775h43.267606c10.095775 0 21.633803-4.326761 28.84507-11.538029l132.687324-118.264788C1156.687324 138.456338 1179.76338 129.802817 1204.28169 129.802817H1615.323944c31.729577 0 62.016901 11.538028 85.092957 31.729577l82.208451 72.112676c21.633803 18.749296 34.614085 46.152113 34.614085 76.439437v389.408451c0 43.267606-18.749296 83.650704-51.921127 111.053521l-64.901409 53.36338c-24.51831 20.191549-53.36338 30.287324-83.650704 30.287324z" p-id="9900"></path><path d="M980.732394 274.028169h-43.267605c-8.653521 0-14.422535-5.769014-14.422535-14.422535s5.769014-14.422535 14.422535-14.422535h43.267605c8.653521 0 14.422535 5.769014 14.422536 14.422535s-5.769014 14.422535-14.422536 14.422535zM980.732394 778.816901h-43.267605c-8.653521 0-14.422535-5.769014-14.422535-14.422535s5.769014-14.422535 14.422535-14.422535h43.267605c8.653521 0 14.422535 5.769014 14.422536 14.422535s-5.769014 14.422535-14.422536 14.422535zM807.661972 796.123944h291.335211v28.84507H807.661972z" p-id="9901"></path><path d="M522.095775 584.833803c2.884507 98.073239-72.112676 165.859155-92.304226 180.28169 89.419718 34.614085 177.397183 23.076056 261.047888-36.056338-15.864789-89.419718-53.36338-149.994366-109.611268-181.723944-21.633803 24.51831-30.287324 27.402817-59.132394 37.498592zM468.732394 492.529577c-80.766197-54.805634-90.861972-155.76338-90.861971-178.839436-80.766197 51.921127-122.591549 129.802817-124.033803 233.64507 82.208451 38.940845 152.878873 44.709859 212.011267 17.307043-10.095775-33.171831-5.769014-41.825352 2.884507-72.112677zM588.439437 486.760563c86.535211-46.152113 180.28169-11.538028 201.915493 0-10.095775-96.630986-60.574648-168.743662-151.43662-216.338028-72.112676 54.805634-109.611268 115.380282-112.495775 180.28169 33.171831 7.211268 40.383099 14.422535 62.016902 36.056338z" p-id="9902"></path><path d="M526.422535 793.239437C370.659155 793.239437 245.183099 667.76338 245.183099 512S370.659155 230.760563 526.422535 230.760563 807.661972 356.23662 807.661972 512 682.185915 793.239437 526.422535 793.239437z m0-533.633803C387.966197 259.605634 274.028169 373.543662 274.028169 512S387.966197 764.394366 526.422535 764.394366 778.816901 650.456338 778.816901 512 664.878873 259.605634 526.422535 259.605634z" p-id="9903"></path><path d="M540.84507 451.425352l-28.84507-1.442253c2.884507-69.228169 41.825352-132.687324 116.822535-190.377465l17.307042 23.076056c-67.785915 51.921127-102.4 108.169014-105.284507 168.743662zM787.470423 506.230986c-62.016901-34.614085-128.360563-37.498592-204.8-4.326761l-11.538029-25.960563c83.650704-34.614085 160.090141-33.171831 229.31831 5.769014l-12.980281 24.51831zM666.321127 739.876056c-10.095775-80.766197-38.940845-142.783099-89.419719-183.166197l18.749296-21.633803c56.247887 46.152113 89.419718 113.938028 99.515493 201.915493l-28.84507 2.884507zM421.138028 771.605634l-15.864789-24.51831c59.132394-38.940845 98.073239-96.630986 116.822536-173.070423l27.402817 7.211268c-20.191549 83.650704-63.459155 147.109859-128.360564 190.377465zM392.292958 576.901408c-44.709859 0-92.304225-10.095775-141.340845-30.287323l11.538028-25.960564c77.88169 31.729577 149.994366 37.498592 213.453521 14.422535l10.095775 27.402817c-31.729577 10.095775-62.016901 14.422535-93.746479 14.422535zM455.752113 497.577465c-49.03662-38.940845-87.977465-102.4-115.380282-187.492958l27.402817-8.653521c25.960563 80.766197 62.016901 138.456338 105.284507 174.512676l-17.307042 21.633803z" p-id="9904"></path><path d="M526.422535 591.323944c-43.267606 0-79.323944-36.056338-79.323943-79.323944s36.056338-79.323944 79.323943-79.323944 79.323944 36.056338 79.323944 79.323944-36.056338 79.323944-79.323944 79.323944z m0-129.802817c-27.402817 0-50.478873 23.076056-50.478873 50.478873s23.076056 50.478873 50.478873 50.478873 50.478873-23.076056 50.478873-50.478873-23.076056-50.478873-50.478873-50.478873z" p-id="9905"></path><path d="M1307.489352 545.388169c-85.669859 47.796282-180.094197 14.047549-201.425127 3.043155 12.23031 96.19831 62.997634 166.811042 154.970141 213.626591 70.958873-55.959437 107.361352-116.937915 107.967099-182.228732-31.340169-5.23538-38.883155-12.547606-61.512113-34.441014zM1356.612507 448.757183c6.345915-98.606873 86.765972-158.359437 107.274817-171.858929-86.592901-43.267606-174.757859-37.325521-263.442028 13.874478 8.624676 89.93893 40.224451 153.311549 93.515718 190.810141 23.148169-23.364507 33.330479-25.902873 62.651493-32.82569zM1420.922592 551.517746c82.525746 50.608676 97.45307 148.566535 99.515493 172.349296 79.367211-55.815211 116.577352-135.571831 113.072676-236.818028-82.785352-33.792-153.989408-35.984225-210.929578-4.788282 9.619831 31.094986 6.25938 39.690817-1.658591 69.242592z" p-id="9906"></path><path d="M1363.477634 793.48462c-155.76338 0-281.239437-125.476056-281.239437-281.239437s125.476056-281.239437 281.239437-281.239437 281.239437 125.476056 281.239436 281.239437c0 154.321127-126.91831 281.239437-281.239436 281.239437z m0-533.633803c-138.456338 0-252.394366 113.938028-252.394366 252.394366s112.495775 252.394366 252.394366 252.394366 252.394366-113.938028 252.394366-252.394366-113.938028-252.394366-252.394366-252.394366z" p-id="9907"></path><path d="M1377.900169 451.670535l-28.84507-1.442253c2.884507-69.228169 41.825352-134.129577 116.822535-191.819719l17.307042 23.076057c-67.785915 53.36338-103.842254 109.611268-105.284507 170.185915zM1623.083268 505.033915c-62.016901-34.614085-128.360563-37.498592-204.8-4.32676l-11.538029-25.960563c83.650704-34.614085 160.090141-33.171831 229.31831 5.769014l-12.980281 24.518309zM1501.933972 740.121239c-10.095775-80.766197-38.940845-142.783099-89.419718-183.166197l18.749295-21.633803c56.247887 46.152113 89.419718 113.938028 99.515493 201.915493l-28.84507 2.884507zM1256.750873 771.850817l-15.864788-24.51831c59.132394-38.940845 98.073239-96.630986 116.822535-173.070422l27.402817 7.211267c-18.749296 82.208451-63.459155 147.109859-128.360564 190.377465zM1227.905803 577.146592c-44.709859 0-92.304225-10.095775-141.340845-30.287324l11.538028-25.960564c77.88169 31.729577 149.994366 37.498592 213.453521 14.422535l10.095775 27.402817c-30.287324 10.095775-60.574648 14.422535-93.746479 14.422536zM1292.807211 497.822648c-49.03662-38.940845-87.977465-102.4-115.380281-187.492958l27.402816-8.653521c25.960563 79.323944 62.016901 138.456338 106.726761 174.512676l-18.749296 21.633803z" p-id="9908"></path><path d="M1363.477634 591.569127c-43.267606 0-79.323944-36.056338-79.323944-79.323944s36.056338-79.323944 79.323944-79.323944 79.323944 36.056338 79.323943 79.323944-36.056338 79.323944-79.323943 79.323944z m0-129.802817c-27.402817 0-50.478873 23.076056-50.478873 50.478873s23.076056 50.478873 50.478873 50.478873 50.478873-23.076056 50.478873-50.478873-23.076056-50.478873-50.478873-50.478873z" p-id="9909"></path><path d="M1730.704225 331.71831h57.690141c8.653521 0 14.422535 5.769014 14.422535 14.422535s-5.769014 14.422535-14.422535 14.422535h-57.690141c-8.653521 0-14.422535-5.769014-14.422535-14.422535s5.769014-14.422535 14.422535-14.422535zM1730.704225 490.366197h57.690141c8.653521 0 14.422535 5.769014 14.422535 14.422535s-5.769014 14.422535-14.422535 14.422536h-57.690141c-8.653521 0-14.422535-5.769014-14.422535-14.422536s5.769014-14.422535 14.422535-14.422535zM1730.704225 663.43662h57.690141c8.653521 0 14.422535 5.769014 14.422535 14.422535s-5.769014 14.422535-14.422535 14.422535h-57.690141c-8.653521 0-14.422535-5.769014-14.422535-14.422535s5.769014-14.422535 14.422535-14.422535z" p-id="9910"></path></svg>
+              <i class="ri-dashboard-3-line icon"></i>
               <div class="grow">
                 <div class="label">GPU</div>
                 <div class="value mono" id="gpu-usage">0%</div>
@@ -411,13 +372,13 @@
                 </div>
               </div>
               <div class="gpu-ring-wrap">
-                <div class="ring" id="gpu-ring" style="--col:var(--accent2)"><span class="mono" id="gpu-ring-val">0%</span></div>
+                <div class="ring" id="gpu-ring" style="--col:var(--accent-secondary)"><span class="mono" id="gpu-ring-val">0%</span></div>
               </div>
             </div>
             <div class="kv">
-              <div class="label">温度</div><div class="meter"><i id="gpu-temp-bar" style="background:linear-gradient(90deg,var(--accent2),#ff8a65)"></i></div><div class="mono" id="gpu-temp">— ℃</div>
-              <div class="label">频率</div><div class="meter"><i id="gpu-clock-bar" style="background:linear-gradient(90deg,var(--accent2),#ff8a65)"></i></div><div class="mono" id="gpu-clock">— MHz</div>
-              <div class="label">显存</div><div class="meter"><i id="gpu-memory-bar" style="background:linear-gradient(90deg,var(--accent2),#ff8a65)"></i></div><div class="mono" id="gpu-memory">—</div>
+              <div class="label">温度</div><div class="meter"><i id="gpu-temp-bar" style="background:linear-gradient(90deg,var(--accent-secondary),#ff8a65)"></i></div><div class="mono" id="gpu-temp">— ℃</div>
+              <div class="label">频率</div><div class="meter"><i id="gpu-clock-bar" style="background:linear-gradient(90deg,var(--accent-secondary),#ff8a65)"></i></div><div class="mono" id="gpu-clock">— MHz</div>
+              <div class="label">显存</div><div class="meter"><i id="gpu-memory-bar" style="background:linear-gradient(90deg,var(--accent-secondary),#ff8a65)"></i></div><div class="mono" id="gpu-memory">—</div>
             </div>
           </div>
           <canvas class="spark" id="gpu-spark"></canvas>
@@ -425,21 +386,17 @@
 
         <section class="card">
           <div class="card-content">
-            <div class="row" style="align-items:center">
+            <div class="row">
               <div class="grow">
                 <div class="label">内存概览</div>
                 <div class="value mono"><span id="mem-used">--</span> / <span id="mem-total">--</span> <span class="unit">GB</span></div>
               </div>
-              <div class="ring" id="mem-ring" style="--col:var(--accent3)"><span class="mono">0%</span></div>
+              <div class="ring" id="mem-ring" style="--col:var(--accent-tertiary)"><span class="mono">0%</span></div>
             </div>
             <div class="chip-row">
               <div class="chip small" id="mem-speed-chip">
                 <span class="chip-label">内存速度</span>
                 <span class="chip-value mono" id="mem-speed">-- MHz</span>
-              </div>
-              <div class="chip small" id="mem-virtual-chip">
-                <span class="chip-label">虚拟内存总量</span>
-                <span class="chip-value mono" id="mem-virtual-total">-- MB</span>
               </div>
               <div class="chip small" id="mem-pressure-chip">
                 <span class="chip-label">压力状态</span>
@@ -453,7 +410,6 @@
         <section class="card" id="fg-card">
           <div class="card-content">
             <div class="row">
-              <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4l-3 3-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4v2h10V7H7zm0 4v2h7v-2H7z"/></svg> -->
               <div class="grow">
                 <div class="label">前台应用</div>
                 <div class="value title-text" id="fg-app-name">—</div>
@@ -462,7 +418,7 @@
             </div>
             <div class="kv">
               <div class="label">CPU</div><div class="meter"><i id="fg-cpu-bar"></i></div><div class="mono" id="fg-cpu">— %</div>
-              <div class="label">内存</div><div class="meter"><i id="fg-mem-bar" style="background:linear-gradient(90deg,var(--accent3),#a5d66a)"></i></div><div class="mono" id="fg-mem">— MB</div>
+              <div class="label">内存</div><div class="meter"><i id="fg-mem-bar" style="background:linear-gradient(90deg,var(--accent-tertiary),#a5d66a)"></i></div><div class="mono" id="fg-mem">— MB</div>
             </div>
             <div class="chip-row" id="fg-top-list" style="margin-top:6px"></div>
           </div>
@@ -473,7 +429,6 @@
         <section class="card">
           <div class="card-content">
             <div class="row">
-              <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 1 0-12 0H3a9 9 0 0 1 9-9zm0 6a3 3 0 0 1 3 3h-3V6zm0 12a9 9 0 0 1-9-9h3a6 6 0 0 0 12 0h3a9 9 0 0 1-9 9z"/></svg> -->
               <div class="grow">
                 <div class="label">网络</div>
                 <div class="gpu-name-switch net-name-switch">
@@ -495,7 +450,6 @@
         <section class="card">
           <div class="card-content">
             <div class="row">
-              <!-- <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v16H4zM6 6v4h12V6H6zm0 6v6h12v-6H6z"/></svg> -->
               <div class="grow">
                 <div class="label">磁盘 I/O</div>
                 <div class="mono">R <span id="disk-r">0.0</span> MB/s &nbsp; W <span id="disk-w">0.0</span> MB/s</div>
@@ -578,11 +532,18 @@
     const $ = (s)=>document.querySelector(s);
     const setText = (id, v)=>{ const el=$(id); if(el) el.textContent = v };
     function clamp(n,min,max){ return Math.max(min, Math.min(max, n)) }
+    function hexToRgba(hex, alpha) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
 
     class Spark{
-      constructor(canvas, capacity=120, yMaxHint=100){
+      constructor(canvas, capacity=120, yMaxHint=100, color='#00f2ff'){
         this.c = canvas; this.ctx = canvas.getContext('2d');
         this.buf = []; this.capacity = capacity; this.yMaxHint = yMaxHint;
+        this.color = color;
         const dpr = Math.max(1, window.devicePixelRatio||1);
         const rect = this.c.getBoundingClientRect();
         this.c.width = rect.width * dpr; this.c.height = rect.height * dpr;
@@ -595,25 +556,43 @@
       draw(){
         const w = this.c.clientWidth, h=this.c.clientHeight;
         const ctx=this.ctx; ctx.clearRect(0,0,w,h);
-        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid');
+        
+        // Grid lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
         ctx.lineWidth = 1; ctx.beginPath();
-        for(let y=0;y<=h;y+=10){ctx.moveTo(0,y);ctx.lineTo(w,y);} ctx.stroke();
+        for(let y=h; y>=0; y-=16){ ctx.moveTo(0,y); ctx.lineTo(w,y); } 
+        ctx.stroke();
+        
         if(this.buf.length<2) return;
         const max = Math.max(this.yMaxHint, ...this.buf, 1);
+        
         ctx.beginPath();
-        ctx.strokeStyle = '#58a6ff';
-        ctx.lineWidth = 2; ctx.lineJoin='round'; ctx.lineCap='round';
-        for(let i=0;i<this.buf.length;i++){
-          const x = i * (w/(this.capacity-1));
-          const y = h - (this.buf[i]/max)*h;
-          i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 3; ctx.lineJoin='round'; ctx.lineCap='round';
+        
+        // Draw line
+        // Start from 0 to ensure fill works correctly from left
+        const step = w / (this.capacity - 1);
+        
+        for(let i=0; i<this.buf.length; i++){
+          const x = i * step;
+          const val = this.buf[i];
+          const y = h - (val/max)*h;
+          if(i===0) ctx.moveTo(x,y);
+          else ctx.lineTo(x,y);
         }
         ctx.stroke();
-        const grad = ctx.createLinearGradient(0,0,0,h);
-        grad.addColorStop(0,'rgba(88,166,255,.28)');
-        grad.addColorStop(1,'rgba(88,166,255,0)');
-        ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath();
-        ctx.fillStyle = grad; ctx.fill();
+        
+        // Fill
+        ctx.lineTo(this.buf.length * step, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, hexToRgba(this.color, 0.25));
+        grad.addColorStop(1, hexToRgba(this.color, 0));
+        ctx.fillStyle = grad; 
+        ctx.fill();
       }
     }
 
@@ -655,11 +634,11 @@
       }
     }
 
-    const cpuSpark = new Spark($('#cpu-spark'), 120, 100);
-    const gpuSpark = new Spark($('#gpu-spark'), 120, 100);
-    const memSpark = new Spark($('#mem-spark'), 120, 100);
-    const netSpark = new Spark($('#net-spark'), 120, 20);
-    const diskSpark= new Spark($('#disk-spark'),120, 20);
+    const cpuSpark = new Spark($('#cpu-spark'), 120, 100, '#00f2ff');
+    const gpuSpark = new Spark($('#gpu-spark'), 120, 100, '#ff8c00');
+    const memSpark = new Spark($('#mem-spark'), 120, 100, '#00e676');
+    const netSpark = new Spark($('#net-spark'), 120, 20, '#00f2ff');
+    const diskSpark= new Spark($('#disk-spark'),120, 20, '#00f2ff');
     const cpuRingEl = document.getElementById('cpu-ring');
     const gpuRingEl = document.getElementById('gpu-ring');
     const cpuTempBar = document.getElementById('cpu-temp-bar');
@@ -1089,9 +1068,6 @@ function renderTopForegroundApps(list){
         const speed = typeof m.mem.speedMhz === 'number' && !Number.isNaN(m.mem.speedMhz) ? m.mem.speedMhz : null;
         setText('#mem-speed', speed != null ? `${Math.round(speed)} MHz` : '-- MHz');
 
-        const virtualTotal = typeof m.mem.virtualTotalGb === 'number' && !Number.isNaN(m.mem.virtualTotalGb) ? m.mem.virtualTotalGb : null;
-        setText('#mem-virtual-total', virtualTotal != null ? `${virtualTotal.toFixed(1)} MB` : '-- MB');
-
         if(memPressureEl){
           let pressureLabel = '--';
           let pressureClass = null;
@@ -1125,7 +1101,6 @@ function renderTopForegroundApps(list){
           if(span) span.textContent = '--';
         }
         setText('#mem-speed', '-- MHz');
-        setText('#mem-virtual-total', '-- MB');
         if(memPressureEl){
           memPressureEl.textContent = '--';
         }
@@ -1288,8 +1263,7 @@ function renderTopForegroundApps(list){
           mem: {
             usedGB: mem.usedGb ?? null,
             totalGB: mem.totalGb ?? null,
-            speedMhz: mem.speedMhz ?? null,
-            virtualTotalGb: mem.virtualTotalGb ?? null
+            speedMhz: mem.speedMhz ?? null
           },
           net: {
             upMBps: net.uploadMBps ?? 0,

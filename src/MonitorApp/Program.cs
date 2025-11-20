@@ -52,6 +52,29 @@ app.MapGet("/index.html", () => Results.Content(indexHtml, "text/html; charset=u
 app.MapGet("/manifest.json", () => Results.Content(manifestJson, "application/manifest+json; charset=utf-8"));
 app.MapGet("/favicon.png", () => Results.File(iconPng, "image/png"));
 
+app.MapGet("/css/{name}", (string name) => ServeEmbeddedResource($"wwwroot/css/{name}"));
+app.MapGet("/fonts/{name}", (string name) => ServeEmbeddedResource($"wwwroot/fonts/{name}"));
+
+IResult ServeEmbeddedResource(string resourceName)
+{
+    var stream = assembly.GetManifestResourceStream(resourceName);
+    if (stream is null) return Results.NotFound();
+    return Results.Stream(stream, GetContentType(resourceName));
+}
+
+string GetContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+{
+    ".html" => "text/html; charset=utf-8",
+    ".css" => "text/css; charset=utf-8",
+    ".js" => "application/javascript; charset=utf-8",
+    ".json" => "application/json; charset=utf-8",
+    ".png" => "image/png",
+    ".woff2" => "font/woff2",
+    ".woff" => "font/woff",
+    ".ttf" => "font/ttf",
+    _ => "application/octet-stream"
+};
+
 app.MapGet("/api/metrics", (HardwareMonitorService monitor) =>
 {
     var snapshot = monitor.GetSnapshot();

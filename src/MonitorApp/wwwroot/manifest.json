@@ -5,8 +5,8 @@
   "start_url": "./",
   "display": "standalone",
   "description": "实时系统监控仪表板",
-  "background_color": "#0b0f14",
-  "theme_color": "#0b0f14",
+  "background_color": "#050505",
+  "theme_color": "#050505",
   "icons": [
     {
       "src": "favicon.png",

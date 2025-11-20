@@ -42,6 +42,12 @@
     <EmbeddedResource Include="wwwroot\favicon.png">
       <LogicalName>wwwroot/favicon.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="wwwroot\css\**">
+      <LogicalName>wwwroot/css/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="wwwroot\fonts\**">
+      <LogicalName>wwwroot/fonts/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
