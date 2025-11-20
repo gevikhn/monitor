@@ -11,7 +11,14 @@
   <link href="css/remixicon.css" rel="stylesheet">
   <style>
     :root {
+      /* Default Theme (Midnight) */
       --bg: #050505;
+      --bg-gradient-start: #1a2c4e;
+      --bg-gradient-end: #050505;
+      --cloud-1: rgba(0, 242, 255, 0.15);
+      --cloud-2: rgba(25, 118, 210, 0.15);
+      --cloud-3: rgba(123, 31, 162, 0.15);
+      
       --card-bg: rgba(20, 30, 45, 0.6);
       --card-border: rgba(255, 255, 255, 0.08);
       --text-main: #ffffff;
@@ -26,15 +33,111 @@
       --warn: #ffea00;
       --bad: #ff1744;
     }
+
+    /* Theme: Cyberpunk */
+    [data-theme="cyberpunk"] {
+      --bg: #0a0014;
+      --bg-gradient-start: #2d004d;
+      --bg-gradient-end: #0a0014;
+      --cloud-1: rgba(255, 0, 212, 0.15);
+      --cloud-2: rgba(0, 255, 242, 0.15);
+      --cloud-3: rgba(111, 0, 255, 0.15);
+      --accent-primary: #ff00d4;
+      --accent-secondary: #00fff2;
+      --accent-tertiary: #ffe600;
+      --card-bg: rgba(45, 0, 45, 0.4);
+    }
+
+    /* Theme: Forest */
+    [data-theme="forest"] {
+      --bg: #051405;
+      --bg-gradient-start: #0f3d0f;
+      --bg-gradient-end: #051405;
+      --cloud-1: rgba(0, 255, 128, 0.15);
+      --cloud-2: rgba(139, 195, 74, 0.15);
+      --cloud-3: rgba(0, 150, 136, 0.15);
+      --accent-primary: #00e676;
+      --accent-secondary: #cddc39;
+      --accent-tertiary: #4caf50;
+      --card-bg: rgba(10, 30, 15, 0.6);
+    }
+
+    /* Theme: Sunset */
+    [data-theme="sunset"] {
+      --bg: #1a0505;
+      --bg-gradient-start: #4d1a1a;
+      --bg-gradient-end: #1a0505;
+      --cloud-1: rgba(255, 87, 34, 0.15);
+      --cloud-2: rgba(255, 193, 7, 0.15);
+      --cloud-3: rgba(156, 39, 176, 0.15);
+      --accent-primary: #ff5722;
+      --accent-secondary: #ffc107;
+      --accent-tertiary: #e91e63;
+      --card-bg: rgba(40, 15, 15, 0.6);
+    }
+
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
       margin: 0;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background: radial-gradient(circle at 50% 0%, #1a2c4e, var(--bg) 80%);
+      background: var(--bg);
       color: var(--text-main);
       overflow: hidden;
+      position: relative;
     }
+
+    /* Volumetric Clouds Background */
+    .bg-fx {
+      position: fixed; inset: 0; z-index: -2;
+      overflow: hidden; pointer-events: none;
+      background: radial-gradient(circle at 50% 0%, var(--bg-gradient-start), var(--bg-gradient-end) 80%);
+    }
+    #webgl-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: -1;
+      opacity: 1.0;
+      mix-blend-mode: overlay;
+    }
+    /* Legacy CSS Blobs (Fallback) */
+    /* body.use-webgl .blob { display: none !important; } */
+    body.use-webgl #global-light { display: none !important; }
+
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.6;
+      animation: float 20s infinite ease-in-out;
+      mix-blend-mode: screen;
+      will-change: transform;
+    }
+    .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: var(--cloud-1); animation-delay: 0s; }
+    .blob-2 { top: 20%; right: -20%; width: 60vw; height: 60vw; background: var(--cloud-2); animation-delay: -5s; }
+    .blob-3 { bottom: -20%; left: 20%; width: 70vw; height: 60vw; background: var(--cloud-3); animation-delay: -10s; }
+
+    /* Performance Optimization: Pause animations when idle */
+    body.paused .blob {
+      animation-play-state: paused;
+    }
+    body.static-clouds .blob {
+      animation: none !important;
+      display: block; /* Ensure they are visible but static */
+    }
+    body.paused .card, body.paused header {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      transition: background 0.3s, backdrop-filter 0.3s; 
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(30px, -50px) scale(1.1); }
+      66% { transform: translate(-20px, 20px) scale(0.9); }
+    }
+
     .app {
       height: 100vh;
       overflow-y: auto;
@@ -52,6 +155,34 @@
     .app::-webkit-scrollbar-thumb {
       background: var(--accent-primary);
       border-radius: 99px;
+    }
+    
+    /* Global Light Overlay (for Cloud Interaction) */
+    #global-light {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1; /* Behind content, above body background */
+      opacity: 0;
+      transition: opacity 0.5s;
+      mix-blend-mode: overlay;
+      background-image: 
+        /* Mouse Spot (Interactive) */
+        radial-gradient(
+          600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
+          rgba(var(--light-rgb), var(--spot-opacity, 0)) 0%, 
+          transparent 60%
+        ),
+        /* Sun Beam (Interactive) */
+        conic-gradient(
+          from var(--beam-start, 0deg) at var(--sun-x, 50vw) var(--sun-y, -100px), 
+          transparent 0deg, 
+          rgba(var(--light-rgb), var(--beam-opacity, 0)) 15deg, 
+          transparent 30deg
+        );
+    }
+    body.cloud-interaction #global-light {
+      opacity: var(--light-intensity, 1);
     }
     
     /* Header */
@@ -94,13 +225,10 @@
       gap: 16px;
       box-shadow: var(--glass-shadow);
       backdrop-filter: blur(12px);
-      transition: transform 0.3s ease, border-color 0.3s ease;
+      transition: border-color 0.3s ease;
       position: relative;
       overflow: hidden;
-      --rx: -1000px;
-      --ry: -1000px;
       --light-rgb: 255, 255, 255;
-      --light-size: 600px;
     }
     .card::before {
       content: "";
@@ -108,12 +236,28 @@
       inset: 0;
       border-radius: 24px;
       padding: 1.5px;
-      background: radial-gradient(
-        var(--light-size) circle at var(--rx) var(--ry), 
-        rgba(var(--light-rgb), 0.6),
-        rgba(var(--light-rgb), 0.1) 40%,
-        transparent 80%
-      );
+      background-image: 
+        /* Mouse Spot (Interactive) */
+        radial-gradient(
+          600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
+          rgba(var(--light-rgb), var(--spot-opacity, 0)) 0%, 
+          transparent 60%
+        ),
+        /* Sun Beam (Interactive) */
+        conic-gradient(
+          from var(--beam-start, 0deg) at var(--sun-x, 50vw) var(--sun-y, -100px), 
+          transparent 0deg, 
+          rgba(var(--light-rgb), var(--beam-opacity, 0)) 15deg, 
+          transparent 30deg
+        ),
+        /* Sun Ambient (Always) */
+        radial-gradient(
+          var(--light-size) circle at var(--sun-x, 50vw) var(--sun-y, -100px), 
+          rgba(var(--light-rgb), 0.6) 0%, 
+          rgba(var(--light-rgb), 0.1) 40%,
+          transparent 80%
+        );
+      background-attachment: fixed;
       -webkit-mask: 
         linear-gradient(#fff 0 0) content-box, 
         linear-gradient(#fff 0 0);
@@ -128,17 +272,25 @@
       position: absolute;
       inset: 0;
       border-radius: 24px;
-      background: radial-gradient(
-        calc(var(--light-size) * 1.5) circle at var(--rx) var(--ry), 
-        rgba(var(--light-rgb), 0.08),
-        transparent 60%
-      );
+      background-image: 
+        /* Mouse Spot Glow */
+        radial-gradient(
+          900px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
+          rgba(var(--light-rgb), calc(var(--spot-opacity, 0) * 0.15)),
+          transparent 60%
+        ),
+        /* Sun Ambient Glow */
+        radial-gradient(
+          calc(var(--light-size) * 1.5) circle at var(--sun-x, 50vw) var(--sun-y, -100px), 
+          rgba(var(--light-rgb), 0.08),
+          transparent 60%
+        );
+      background-attachment: fixed;
       pointer-events: none;
       opacity: var(--light-intensity, 1);
     }
     .card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
     }
     .card.span-2 { grid-column: span 2; }
 
@@ -392,6 +544,21 @@
     .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 24px; }
     .modal-body { display: flex; flex-direction: column; gap: 16px; }
     .control-row { display: flex; justify-content: space-between; align-items: center; }
+    
+    /* Select Styling */
+    #theme-select {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid var(--card-border);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      outline: none;
+    }
+    #theme-select option {
+      background-color: #131b29;
+      color: white;
+    }
+
     .switch {
       position: relative; display: inline-block; width: 48px; height: 24px;
     }
@@ -412,6 +579,12 @@
   </style>
 </head>
 <body>
+  <div class="bg-fx">
+    <canvas id="webgl-canvas"></canvas>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
   <div class="app">
     <header>
       <div>
@@ -613,6 +786,7 @@
   </div>
 
   <!-- Settings Modal -->
+  <div id="global-light"></div>
   <div class="modal-overlay" id="settings-modal">
     <div class="modal">
       <div class="modal-header">
@@ -632,8 +806,66 @@
           <input type="color" id="manual-color-picker" value="#00f2ff" disabled style="background:none; border:none; width:40px; height:40px; cursor:pointer;">
         </div>
         <div class="control-row">
-          <div class="label">光照强度</div>
+          <div class="label">渲染模式</div>
+          <select id="render-mode-select">
+            <option value="webgl">WebGL (高性能)</option>
+            <option value="css">CSS (兼容模式)</option>
+          </select>
+        </div>
+        <div class="control-row" id="render-scale-row">
+          <div class="label">渲染分辨率 <span id="render-scale-val" class="mono" style="font-size:12px; opacity:0.7; margin-left:4px">1.0x</span></div>
+          <input type="range" id="render-scale-slider" min="0.25" max="1.5" step="0.25" value="1.0" style="width: 120px; cursor: pointer;">
+        </div>
+        <div class="control-row">
+          <div class="label">光照强度 <span id="intensity-val" class="mono" style="font-size:12px; opacity:0.7; margin-left:4px">1000 lm</span></div>
           <input type="range" id="intensity-slider" min="0" max="2" step="0.1" value="1" style="width: 120px; cursor: pointer;">
+        </div>
+        <div class="control-row">
+          <div class="label">光照范围 <span id="range-val" class="mono" style="font-size:12px; opacity:0.7; margin-left:4px">100%</span></div>
+          <input type="range" id="range-slider" min="0.5" max="2" step="0.1" value="1" style="width: 120px; cursor: pointer;">
+        </div>
+        <div class="control-row">
+          <div class="label">云层交互</div>
+          <label class="switch">
+            <input type="checkbox" id="cloud-interaction-toggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="control-row">
+          <div class="label">特效质量</div>
+          <select id="quality-select">
+            <option value="high">高 (流畅)</option>
+            <option value="balanced">中 (平衡)</option>
+            <option value="low">低 (节能)</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <div class="label">主题风格</div>
+          <select id="theme-select">
+            <option value="default">默认 (午夜)</option>
+            <option value="cyberpunk">赛博朋克</option>
+            <option value="forest">幽暗森林</option>
+            <option value="sunset">暮光之城</option>
+          </select>
+        </div>
+        <div style="height:1px; background:var(--card-border); margin: 8px 0;"></div>
+        <div class="control-row">
+          <div class="label">禁用云层动画</div>
+          <label class="switch">
+            <input type="checkbox" id="disable-clouds-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="control-row">
+          <div class="label">禁用动态光照</div>
+          <label class="switch">
+            <input type="checkbox" id="disable-light-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="control-row">
+          <div class="label">采集频率 <span id="refresh-rate-val" class="mono" style="font-size:12px; opacity:0.7; margin-left:4px">2.0s</span></div>
+          <input type="range" id="refresh-rate-slider" min="0.5" max="10" step="0.5" value="2" style="width: 120px; cursor: pointer;">
         </div>
       </div>
     </div>
@@ -641,7 +873,10 @@
 
   <script>
     const $ = (s)=>document.querySelector(s);
-    const setText = (id, v)=>{ const el=$(id); if(el) el.textContent = v };
+    const setText = (id, v)=>{ 
+      const el=$(id); 
+      if(el && el.textContent !== String(v)) el.textContent = v 
+    };
     function clamp(n,min,max){ return Math.max(min, Math.min(max, n)) }
     function hexToRgba(hex, alpha) {
       const r = parseInt(hex.slice(1, 3), 16);
@@ -655,18 +890,39 @@
         this.c = canvas; this.ctx = canvas.getContext('2d');
         this.buf = []; this.capacity = capacity; this.yMaxHint = yMaxHint;
         this.color = color;
+        this.colorRgbaStart = hexToRgba(this.color, 0.25);
+        this.colorRgbaEnd = hexToRgba(this.color, 0);
+        
+        this.resize();
+      }
+      
+      resize() {
         const dpr = Math.max(1, window.devicePixelRatio||1);
         const rect = this.c.getBoundingClientRect();
-        this.c.width = rect.width * dpr; this.c.height = rect.height * dpr;
-        this.ctx.scale(dpr, dpr);
+        // Cache dimensions to avoid layout thrashing during draw
+        this.w = rect.width;
+        this.h = rect.height;
+        
+        // Only resize canvas if dimensions actually changed to avoid clearing content unnecessarily
+        if (this.c.width !== rect.width * dpr || this.c.height !== rect.height * dpr) {
+          this.c.width = rect.width * dpr; 
+          this.c.height = rect.height * dpr;
+          this.ctx.scale(dpr, dpr);
+          this.draw(); // Redraw after resize
+        }
       }
+
       push(v){
         this.buf.push(v ?? 0); if(this.buf.length>this.capacity) this.buf.shift();
         this.draw();
       }
+      
       draw(){
-        const w = this.c.clientWidth, h=this.c.clientHeight;
-        const ctx=this.ctx; ctx.clearRect(0,0,w,h);
+        // Use cached dimensions
+        const w = this.w;
+        const h = this.h;
+        const ctx=this.ctx; 
+        ctx.clearRect(0,0,w,h);
         
         // Grid lines
         ctx.strokeStyle = 'rgba(255,255,255,0.03)';
@@ -682,7 +938,6 @@
         ctx.lineWidth = 3; ctx.lineJoin='round'; ctx.lineCap='round';
         
         // Draw line
-        // Start from 0 to ensure fill works correctly from left
         const step = w / (this.capacity - 1);
         
         for(let i=0; i<this.buf.length; i++){
@@ -700,8 +955,8 @@
         ctx.closePath();
         
         const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, hexToRgba(this.color, 0.25));
-        grad.addColorStop(1, hexToRgba(this.color, 0));
+        grad.addColorStop(0, this.colorRgbaStart);
+        grad.addColorStop(1, this.colorRgbaEnd);
         ctx.fillStyle = grad; 
         ctx.fill();
       }
@@ -710,17 +965,26 @@
     function setRing(el, percent){
       if(!el) return;
       percent = clamp(percent ?? 0, 0, 100);
+      const newP = Math.round(percent);
+      if (el._lastP === newP) return;
+      el._lastP = newP;
       el.style.setProperty('--p', percent);
-      el.querySelector('span').textContent = Math.round(percent) + '%';
+      el.querySelector('span').textContent = newP + '%';
     }
     function setMeter(el, percent){
       if(!el) return;
-      el.style.width = clamp(percent ?? 0,0,100) + '%';
+      const pct = clamp(percent ?? 0,0,100);
+      if (el._lastPct === pct) return;
+      el._lastPct = pct;
+      el.style.width = pct + '%';
     }
 
     function setChipText(chipEl, text){
       if(!chipEl) return;
       const value = text && text.trim().length ? text : '—';
+      if (chipEl._lastText === value) return;
+      chipEl._lastText = value;
+
       chipEl.classList.remove('marquee');
       chipEl.innerHTML = `<span>${value}</span>`;
       requestAnimationFrame(() => {
@@ -736,6 +1000,7 @@
     function setTitleText(el, text){
       if(!el) return;
       const value = (text ?? '—').toString();
+      if (el.textContent === value) return;
       el.classList.remove('marquee');
       el.textContent = value;
       if(value === '—'){
@@ -750,6 +1015,9 @@
     const memSpark = new Spark($('#mem-spark'), 120, 100, '#00e676');
     const netSpark = new Spark($('#net-spark'), 120, 20, '#00f2ff');
     const diskSpark= new Spark($('#disk-spark'),120, 20, '#00f2ff');
+    
+    const allSparks = [cpuSpark, gpuSpark, memSpark, netSpark, diskSpark];
+    
     const cpuRingEl = document.getElementById('cpu-ring');
     const gpuRingEl = document.getElementById('gpu-ring');
     const cpuTempBar = document.getElementById('cpu-temp-bar');
@@ -785,7 +1053,11 @@
       return measured;
     };
     updateTempCardBaseHeight();
-    requestAnimationFrame(updateTempCardBaseHeight);
+    window.addEventListener('resize', () => {
+      updateTempCardBaseHeight();
+      allSparks.forEach(s => s.resize());
+    });
+    
     const fgAppNameEl = document.getElementById('fg-app-name');
     const fgProcessNameEl = document.getElementById('fg-process-name');
     const fgCpuBar = document.getElementById('fg-cpu-bar');
@@ -1409,7 +1681,12 @@ function renderTopForegroundApps(list){
     renderTempHighlights();
 
     fetchMetrics();
-    setInterval(fetchMetrics, 2000);
+    let fetchTimer = setInterval(fetchMetrics, 2000);
+
+    function updateFetchInterval(seconds) {
+      clearInterval(fetchTimer);
+      fetchTimer = setInterval(fetchMetrics, seconds * 1000);
+    }
 
     // Light Effect Logic
     const cards = document.querySelectorAll('.card');
@@ -1421,6 +1698,9 @@ function renderTopForegroundApps(list){
     let manualColorRgb = '0, 242, 255';
     let mouseX = 0, mouseY = 0;
     let isMouseInWindow = false;
+    let lastMouseMoveTime = 0;
+    let refreshRate = 2.0;
+    let effectQuality = 'high'; // 'high', 'balanced', 'low'
 
     // UI Elements
     const clockBtn = document.getElementById('clock');
@@ -1429,12 +1709,118 @@ function renderTopForegroundApps(list){
     const autoColorToggle = document.getElementById('auto-color-toggle');
     const manualColorPicker = document.getElementById('manual-color-picker');
     const intensitySlider = document.getElementById('intensity-slider');
+    const intensityVal = document.getElementById('intensity-val');
+    const rangeSlider = document.getElementById('range-slider');
+    const rangeVal = document.getElementById('range-val');
+    const cloudInteractionToggle = document.getElementById('cloud-interaction-toggle');
+    const qualitySelect = document.getElementById('quality-select');
+    const themeSelect = document.getElementById('theme-select');
+    const disableCloudsToggle = document.getElementById('disable-clouds-toggle');
+    const disableLightToggle = document.getElementById('disable-light-toggle');
+    const refreshRateSlider = document.getElementById('refresh-rate-slider');
+    const refreshRateVal = document.getElementById('refresh-rate-val');
+
+    // Persistence
+    function saveSettings() {
+      const settings = {
+        isAutoColor,
+        manualColorHex,
+        intensity: intensitySlider.value,
+        range: rangeSlider.value,
+        cloudInteraction: cloudInteractionToggle.checked,
+        quality: qualitySelect.value,
+        theme: themeSelect.value,
+        disableClouds: disableCloudsToggle.checked,
+        disableLight: disableLightToggle.checked,
+        refreshRate: refreshRateSlider.value,
+        renderMode: renderModeSelect.value,
+        renderScale: renderScaleSlider.value
+      };
+      localStorage.setItem('monitor_settings', JSON.stringify(settings));
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem('monitor_settings');
+        if (!raw) return;
+        const s = JSON.parse(raw);
+
+        if (s.isAutoColor !== undefined) {
+          isAutoColor = s.isAutoColor;
+          autoColorToggle.checked = isAutoColor;
+          manualColorPicker.disabled = isAutoColor;
+        }
+        if (s.manualColorHex) {
+          manualColorHex = s.manualColorHex;
+          manualColorPicker.value = manualColorHex;
+          const r = parseInt(manualColorHex.slice(1, 3), 16);
+          const g = parseInt(manualColorHex.slice(3, 5), 16);
+          const b = parseInt(manualColorHex.slice(5, 7), 16);
+          manualColorRgb = `${r}, ${g}, ${b}`;
+        }
+        if (s.intensity) {
+          intensitySlider.value = s.intensity;
+          intensityVal.textContent = Math.round(s.intensity * 1000) + ' lm';
+          document.documentElement.style.setProperty('--light-intensity', s.intensity);
+        }
+        if (s.range) {
+          rangeSlider.value = s.range;
+          rangeVal.textContent = Math.round(s.range * 100) + '%';
+          document.documentElement.style.setProperty('--light-range-scale', s.range);
+        }
+        if (s.cloudInteraction !== undefined) {
+          cloudInteractionToggle.checked = s.cloudInteraction;
+          if (s.cloudInteraction) document.body.classList.add('cloud-interaction');
+          else document.body.classList.remove('cloud-interaction');
+        } else {
+          // Default on
+          document.body.classList.add('cloud-interaction');
+        }
+        if (s.quality) {
+          qualitySelect.value = s.quality;
+          effectQuality = s.quality;
+        }
+        if (s.theme) {
+          themeSelect.value = s.theme;
+          if (s.theme === 'default') document.body.removeAttribute('data-theme');
+          else document.body.setAttribute('data-theme', s.theme);
+        }
+        if (s.disableClouds !== undefined) {
+          disableCloudsToggle.checked = s.disableClouds;
+          if (s.disableClouds) document.body.classList.add('static-clouds');
+          else document.body.classList.remove('static-clouds');
+        }
+        if (s.disableLight !== undefined) {
+          disableLightToggle.checked = s.disableLight;
+          isLightDisabled = s.disableLight;
+        }
+        if (s.refreshRate) {
+          refreshRate = parseFloat(s.refreshRate);
+          refreshRateSlider.value = refreshRate;
+          refreshRateVal.textContent = refreshRate.toFixed(1) + 's';
+          updateFetchInterval(refreshRate);
+        }
+        if (s.renderMode) {
+          renderModeSelect.value = s.renderMode;
+          setRenderMode(s.renderMode);
+        }
+        if (s.renderScale) {
+          renderScale = parseFloat(s.renderScale);
+          renderScaleSlider.value = renderScale;
+          renderScaleVal.textContent = renderScale.toFixed(2) + 'x';
+          resizeWebGL();
+        }
+      } catch (e) {
+        console.error('Failed to load settings', e);
+      }
+    }
 
     // Event Listeners
     window.addEventListener('mousemove', (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
       isMouseInWindow = true;
+      lastMouseMoveTime = performance.now();
     });
     document.addEventListener('mouseleave', () => {
       isMouseInWindow = false;
@@ -1453,6 +1839,7 @@ function renderTopForegroundApps(list){
     autoColorToggle.addEventListener('change', (e) => {
       isAutoColor = e.target.checked;
       manualColorPicker.disabled = isAutoColor;
+      saveSettings();
     });
 
     manualColorPicker.addEventListener('input', (e) => {
@@ -1461,11 +1848,73 @@ function renderTopForegroundApps(list){
       const g = parseInt(manualColorHex.slice(3, 5), 16);
       const b = parseInt(manualColorHex.slice(5, 7), 16);
       manualColorRgb = `${r}, ${g}, ${b}`;
+      saveSettings();
     });
 
     intensitySlider.addEventListener('input', (e) => {
-      document.documentElement.style.setProperty('--light-intensity', e.target.value);
+      const val = e.target.value;
+      intensityVal.textContent = Math.round(val * 1000) + ' lm';
+      document.documentElement.style.setProperty('--light-intensity', val);
+      saveSettings();
     });
+
+    rangeSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      rangeVal.textContent = Math.round(val * 100) + '%';
+      document.documentElement.style.setProperty('--light-range-scale', val);
+      saveSettings();
+    });
+
+    cloudInteractionToggle.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        document.body.classList.add('cloud-interaction');
+      } else {
+        document.body.classList.remove('cloud-interaction');
+      }
+      saveSettings();
+    });
+
+    qualitySelect.addEventListener('change', (e) => {
+      effectQuality = e.target.value;
+      saveSettings();
+    });
+
+    themeSelect.addEventListener('change', (e) => {
+      const theme = e.target.value;
+      if (theme === 'default') {
+        document.body.removeAttribute('data-theme');
+      } else {
+        document.body.setAttribute('data-theme', theme);
+      }
+      saveSettings();
+    });
+
+    disableCloudsToggle.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        document.body.classList.add('static-clouds');
+      } else {
+        document.body.classList.remove('static-clouds');
+      }
+      saveSettings();
+    });
+
+    let isLightDisabled = false;
+    disableLightToggle.addEventListener('change', (e) => {
+      isLightDisabled = e.target.checked;
+      if (!isLightDisabled) {
+        requestAnimationFrame(updateLight);
+      }
+      saveSettings();
+    });
+
+    refreshRateSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      refreshRateVal.textContent = val.toFixed(1) + 's';
+      updateFetchInterval(val);
+      saveSettings();
+    });
+
+    // Load settings on startup - Moved to end of script to ensure all vars are defined
 
     function getSunlightColor() {
       const now = new Date();
@@ -1504,72 +1953,371 @@ function renderTopForegroundApps(list){
       return `${r}, ${g}, ${b}`;
     }
 
+    // WebGL Background Logic
+    const glCanvas = document.getElementById('webgl-canvas');
+    const renderModeSelect = document.getElementById('render-mode-select');
+    const renderScaleSlider = document.getElementById('render-scale-slider');
+    const renderScaleVal = document.getElementById('render-scale-val');
+    const renderScaleRow = document.getElementById('render-scale-row');
+
+    let gl = null;
+    let glProgram = null;
+    let glLocations = {};
+    let renderScale = 1.0;
+    let isWebGLActive = false;
+
+    const VS_SOURCE = `
+      attribute vec2 position;
+      void main() {
+        gl_Position = vec4(position, 0.0, 1.0);
+      }
+    `;
+
+    const FS_SOURCE = `
+      precision mediump float;
+      uniform vec2 u_resolution;
+      uniform float u_time;
+      uniform vec2 u_mouse;
+      uniform vec2 u_sun;
+      uniform vec3 u_color;
+      uniform float u_intensity;
+      uniform float u_range;
+      uniform float u_opacity; // Controls beam/spot visibility
+
+      // Simple noise function
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+                   mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+        for (int i = 0; i < 3; i++) {
+          v += a * noise(p);
+          p *= 2.0;
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      void main() {
+        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+        // Correct aspect ratio for p
+        vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+        
+        // 1. Background (Transparent/Black)
+        // We use CSS background for the main color/gradient to match themes.
+        // WebGL only renders lights on top (Overlay blend mode).
+        // Clouds are handled by CSS blobs for better color matching.
+        
+        // 2. Light Calculations
+        vec2 sunP = (u_sun * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+        vec2 mouseP = (u_mouse * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+        
+        vec2 dir = p - sunP;
+        float dist = length(dir);
+        float angle = atan(dir.y, dir.x);
+        
+        vec2 beamDir = normalize(mouseP - sunP);
+        float beamAngle = atan(beamDir.y, beamDir.x);
+        
+        // Wider, softer beam
+        float beamWidth = 0.8 * u_range; 
+        float beamDiff = abs(angle - beamAngle);
+        if (beamDiff > 3.14159) beamDiff = 6.28318 - beamDiff;
+        
+        float beam = smoothstep(beamWidth, 0.0, beamDiff);
+        beam *= smoothstep(2.5, 0.2, dist * 0.8); 
+        
+        float beamNoiseVal = fbm(vec2(angle * 8.0, dist * 3.0 - u_time * 0.5));
+        beam *= 0.9 + 0.1 * beamNoiseVal;
+
+        // 4. Mouse Spot
+        float spotDist = length(p - mouseP);
+        float spot = smoothstep(0.3 * u_range, 0.0, spotDist);
+
+        // 5. Sun Ambient (Bloom/Scattering)
+        float sunDist = length(p - sunP);
+        float sunAmbient = smoothstep(1.5 * u_range, 0.0, sunDist); // Larger ambient
+        sunAmbient = pow(sunAmbient, 1.5); // Softer falloff
+
+        // Combine Light
+        // When opacity is 0 (mouse out), beam and spot disappear, ambient remains
+        float lightIntensity = 
+          beam * 0.06 * u_intensity * u_opacity +      // Reduced beam
+          spot * 0.08 * u_intensity * u_opacity +       // Spot
+          sunAmbient * 0.3 * u_intensity;               // Ambient
+
+        vec3 finalColor = u_color * lightIntensity;
+        
+        // Output with alpha for Overlay blending
+        gl_FragColor = vec4(finalColor, clamp(lightIntensity, 0.0, 1.0));
+      }
+    `;
+
+    function initWebGL() {
+      gl = glCanvas.getContext('webgl');
+      if (!gl) {
+        console.error('WebGL not supported');
+        setRenderMode('css');
+        return;
+      }
+
+      const vs = createShader(gl, gl.VERTEX_SHADER, VS_SOURCE);
+      const fs = createShader(gl, gl.FRAGMENT_SHADER, FS_SOURCE);
+      glProgram = createProgram(gl, vs, fs);
+
+      glLocations = {
+        position: gl.getAttribLocation(glProgram, 'position'),
+        u_resolution: gl.getUniformLocation(glProgram, 'u_resolution'),
+        u_time: gl.getUniformLocation(glProgram, 'u_time'),
+        u_mouse: gl.getUniformLocation(glProgram, 'u_mouse'),
+        u_sun: gl.getUniformLocation(glProgram, 'u_sun'),
+        u_color: gl.getUniformLocation(glProgram, 'u_color'),
+        u_intensity: gl.getUniformLocation(glProgram, 'u_intensity'),
+        u_range: gl.getUniformLocation(glProgram, 'u_range'),
+        u_opacity: gl.getUniformLocation(glProgram, 'u_opacity')
+      };
+
+      const positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1,
+         1, -1,
+        -1,  1,
+        -1,  1,
+         1, -1,
+         1,  1,
+      ]), gl.STATIC_DRAW);
+    }
+
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+
+    function createProgram(gl, vs, fs) {
+      const program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(program));
+        return null;
+      }
+      return program;
+    }
+
+    function resizeWebGL() {
+      if (!gl) return;
+      const w = window.innerWidth * renderScale;
+      const h = window.innerHeight * renderScale;
+      if (glCanvas.width !== w || glCanvas.height !== h) {
+        glCanvas.width = w;
+        glCanvas.height = h;
+        gl.viewport(0, 0, w, h);
+      }
+    }
+
+    function renderWebGL(time, sunX, sunY, mouseX, mouseY, colorRgb, intensity, range, opacity) {
+      if (!gl || !glProgram) return;
+      
+      gl.useProgram(glProgram);
+      
+      gl.enableVertexAttribArray(glLocations.position);
+      gl.vertexAttribPointer(glLocations.position, 2, gl.FLOAT, false, 0, 0);
+
+      gl.uniform2f(glLocations.u_resolution, glCanvas.width, glCanvas.height);
+      gl.uniform1f(glLocations.u_time, time * 0.001);
+      // Adjust mouse/sun coordinates for render scale
+      gl.uniform2f(glLocations.u_mouse, mouseX * renderScale, (window.innerHeight - mouseY) * renderScale); // Flip Y for GL
+      gl.uniform2f(glLocations.u_sun, sunX * renderScale, (window.innerHeight - sunY) * renderScale);
+      
+      const rgb = colorRgb.split(',').map(x => parseInt(x.trim()) / 255);
+      gl.uniform3f(glLocations.u_color, rgb[0], rgb[1], rgb[2]);
+      gl.uniform1f(glLocations.u_intensity, parseFloat(intensity));
+      gl.uniform1f(glLocations.u_range, parseFloat(range));
+      gl.uniform1f(glLocations.u_opacity, parseFloat(opacity));
+
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    function setRenderMode(mode) {
+      if (mode === 'webgl') {
+        document.body.classList.add('use-webgl');
+        renderScaleRow.style.display = 'flex';
+        if (!gl) initWebGL();
+        resizeWebGL(); // Ensure size is correct immediately
+        isWebGLActive = true;
+      } else {
+        document.body.classList.remove('use-webgl');
+        renderScaleRow.style.display = 'none';
+        isWebGLActive = false;
+      }
+      localStorage.setItem('render_mode', mode);
+    }
+
+    renderModeSelect.addEventListener('change', (e) => {
+      setRenderMode(e.target.value);
+    });
+
+    renderScaleSlider.addEventListener('input', (e) => {
+      renderScale = parseFloat(e.target.value);
+      renderScaleVal.textContent = renderScale.toFixed(2) + 'x';
+      resizeWebGL();
+      localStorage.setItem('render_scale', renderScale);
+    });
+
+    // Init settings
+    const savedRenderMode = localStorage.getItem('render_mode') || 'webgl'; // Default to WebGL
+    renderModeSelect.value = savedRenderMode;
+    setRenderMode(savedRenderMode);
+
+    const savedRenderScale = localStorage.getItem('render_scale');
+    if (savedRenderScale) {
+      renderScale = parseFloat(savedRenderScale);
+      renderScaleSlider.value = renderScale;
+      renderScaleVal.textContent = renderScale.toFixed(2) + 'x';
+      resizeWebGL();
+    }
+
+    window.addEventListener('resize', resizeWebGL);
+
+
     let currentX = window.innerWidth / 2;
     let currentY = -100;
     let currentSize = 1000;
+    let currentOpacity = 0;
+    let lastColorUpdate = 0;
+    let cachedSunlightColor = '255, 255, 255';
+    let lastFrameTime = 0;
 
-    function updateLight() {
-      time += 0.005;
+    function updateLight(timestamp) {
+      // Use performance.now() for consistent timing across rAF and setTimeout
+      const now = performance.now();
+      
+      // If disabled, stop the loop
+      if (isLightDisabled) return;
+
+      let targetInterval = 16; // Default 60fps
+      let shouldPauseCss = false;
+
+      if (effectQuality === 'high') {
+        targetInterval = 16;
+        shouldPauseCss = false;
+      } else if (effectQuality === 'balanced') {
+        const isInteracting = isMouseInWindow && (now - lastMouseMoveTime < 2000);
+        targetInterval = isInteracting ? 33 : 1000;
+        shouldPauseCss = !isInteracting;
+      } else if (effectQuality === 'low') {
+        const isInteracting = isMouseInWindow && (now - lastMouseMoveTime < 2000);
+        targetInterval = isInteracting ? 100 : 2000;
+        shouldPauseCss = !isInteracting;
+      }
+
+      // Toggle CSS animation state
+      if (shouldPauseCss) {
+        document.body.classList.add('paused');
+      } else {
+        document.body.classList.remove('paused');
+      }
+
+      if (now - lastFrameTime < targetInterval) {
+        if (effectQuality === 'high') {
+          requestAnimationFrame(updateLight);
+        } else {
+          setTimeout(() => requestAnimationFrame(updateLight), targetInterval - (now - lastFrameTime));
+        }
+        return;
+      }
+      lastFrameTime = now;
+
       const w = window.innerWidth;
       const h = window.innerHeight;
       
-      // Position Logic
-      let targetX, targetY, targetSize;
-      if (isMouseInWindow) {
-        // God Rays / Focus Mode
-        targetX = mouseX;
-        targetY = mouseY;
-        targetSize = 600;
-      } else {
-        // Sky Light / Diffuse Mode
-        // Simulate Sun/Moon path: East (Left) -> West (Right)
-        const now = new Date();
-        const hour = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-        
-        // Cycle: 6am -> 0.0, 12pm -> 0.5, 18pm -> 1.0 (Day)
-        //        18pm -> 0.0, 24am -> 0.5, 6am -> 1.0 (Night)
-        // We use a 12-hour cycle offset by 6 hours
-        const cycleProgress = ((hour - 6 + 24) % 24) / 12; // 0..2 range
-        const normalizedProgress = cycleProgress % 1; // 0..1 range for current pass
-        
-        targetX = normalizedProgress * w;
-        
-        // Arc path: High at noon/midnight (0.5), Low at horizon (0.0/1.0)
-        // Using sin(PI * p) -> 0 at ends, 1 at center
-        const arcHeight = 200;
-        const baseY = -50;
-        targetY = baseY - (Math.sin(normalizedProgress * Math.PI) * arcHeight);
-        
-        // Add slight wobble for atmosphere
-        targetX += Math.sin(time * 0.5) * 20;
-        
-        targetSize = Math.max(w, h) * 1.2; 
-      }
+      // 1. Sun Position (Source) - Moves slowly across top
+      const date = new Date();
+      const hour = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+      // Cycle: 6am -> 0.0, 18pm -> 1.0
+      const cycleProgress = ((hour - 6 + 24) % 24) / 12; 
+      const normalizedProgress = cycleProgress % 1; 
+      
+      // Sun moves from 20% to 80% width
+      let sunX = (0.2 + normalizedProgress * 0.6) * w; 
+      let sunY = -150; // Above screen
 
-      // Smooth transition (Lerp)
-      currentX += (targetX - currentX) * 0.1;
-      currentY += (targetY - currentY) * 0.1;
-      currentSize += (targetSize - currentSize) * 0.1;
+      // 2. Beam Calculation (Sun -> Mouse)
+      // Angle from Sun to Mouse
+      const dx = mouseX - sunX;
+      const dy = mouseY - sunY;
+      let angleRad = Math.atan2(dy, dx);
+      let angleDeg = angleRad * (180 / Math.PI);
+      
+      // CSS conic-gradient 0deg is Top (12 o'clock). atan2 0 is Right (3 o'clock).
+      // Correction: +90 degrees.
+      let cssAngle = angleDeg + 90;
 
-      // Color Logic
+      // The beam wedge is 30deg wide (0 to 30). Center is 15.
+      // We want center to align with cssAngle.
+      let beamStart = cssAngle - 15;
+
+      // 3. Opacity Logic (Smooth fade in/out)
+      let targetOpacity = isMouseInWindow ? 1 : 0;
+      currentOpacity += (targetOpacity - currentOpacity) * 0.1;
+
+      // 4. Color Logic
       let currentRgb;
       if (isAutoColor) {
-        currentRgb = getSunlightColor();
+        if (now - lastColorUpdate > 1000) {
+          cachedSunlightColor = getSunlightColor();
+          lastColorUpdate = now;
+        }
+        currentRgb = cachedSunlightColor;
       } else {
         currentRgb = manualColorRgb;
       }
 
-      cards.forEach(card => {
-        const rect = card.getBoundingClientRect();
-        const x = currentX - rect.left;
-        const y = currentY - rect.top;
-        card.style.setProperty('--rx', `${x}px`);
-        card.style.setProperty('--ry', `${y}px`);
-        card.style.setProperty('--light-size', `${currentSize}px`);
-        card.style.setProperty('--light-rgb', currentRgb);
-      });
-      requestAnimationFrame(updateLight);
+      // 5. Update CSS Variables
+      const rootStyle = document.documentElement.style;
+      rootStyle.setProperty('--sun-x', `${sunX.toFixed(1)}px`);
+      rootStyle.setProperty('--sun-y', `${sunY.toFixed(1)}px`);
+      rootStyle.setProperty('--mouse-x', `${mouseX.toFixed(1)}px`);
+      rootStyle.setProperty('--mouse-y', `${mouseY.toFixed(1)}px`);
+      rootStyle.setProperty('--beam-start', `${beamStart.toFixed(2)}deg`);
+      rootStyle.setProperty('--spot-opacity', currentOpacity.toFixed(3));
+      rootStyle.setProperty('--beam-opacity', (currentOpacity * 0.4).toFixed(3)); // Beam is subtler
+      rootStyle.setProperty('--light-rgb', currentRgb);
+      rootStyle.setProperty('--light-size', 'calc(1200px * var(--light-range-scale, 1))'); // Large ambient light
+      
+      // 6. Render WebGL
+      if (isWebGLActive) {
+        renderWebGL(now, sunX, sunY, mouseX, mouseY, currentRgb, intensitySlider.value, rangeSlider.value, currentOpacity);
+      }
+
+      // Schedule next frame
+      if (effectQuality === 'high') {
+        requestAnimationFrame(updateLight);
+      } else {
+        setTimeout(() => requestAnimationFrame(updateLight), targetInterval);
+      }
     }
+    
+    // Load settings after all variables are initialized
+    loadSettings();
+    
     requestAnimationFrame(updateLight);
   </script>
 </body>
