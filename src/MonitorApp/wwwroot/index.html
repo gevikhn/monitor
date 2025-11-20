@@ -169,7 +169,7 @@
       background-image: 
         /* Mouse Spot (Interactive) */
         radial-gradient(
-          600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
+          calc(600px * var(--spot-size-scale, 1)) circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
           rgba(var(--light-rgb), var(--spot-opacity, 0)) 0%, 
           transparent 60%
         ),
@@ -239,7 +239,7 @@
       background-image: 
         /* Mouse Spot (Interactive) */
         radial-gradient(
-          600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
+          calc(600px * var(--spot-size-scale, 1)) circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
           rgba(var(--light-rgb), var(--spot-opacity, 0)) 0%, 
           transparent 60%
         ),
@@ -273,21 +273,22 @@
       inset: 0;
       border-radius: 24px;
       background-image: 
-        /* Mouse Spot Glow */
+        /* Mouse Spot Glow - Enhanced Specular Highlight */
         radial-gradient(
-          900px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
-          rgba(var(--light-rgb), calc(var(--spot-opacity, 0) * 0.15)),
-          transparent 60%
+          calc(800px * var(--spot-size-scale, 1)) circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), 
+          rgba(var(--light-rgb), calc(var(--spot-opacity, 0) * 0.25)),
+          transparent 50%
         ),
         /* Sun Ambient Glow */
         radial-gradient(
           calc(var(--light-size) * 1.5) circle at var(--sun-x, 50vw) var(--sun-y, -100px), 
-          rgba(var(--light-rgb), 0.08),
+          rgba(var(--light-rgb), 0.1),
           transparent 60%
         );
       background-attachment: fixed;
       pointer-events: none;
       opacity: var(--light-intensity, 1);
+      mix-blend-mode: overlay; /* Better blending for reflection effect */
     }
     .card:hover {
       border-color: rgba(255, 255, 255, 0.3);
@@ -823,6 +824,10 @@
         <div class="control-row">
           <div class="label">光照范围 <span id="range-val" class="mono" style="font-size:12px; opacity:0.7; margin-left:4px">100%</span></div>
           <input type="range" id="range-slider" min="0.5" max="2" step="0.1" value="1" style="width: 120px; cursor: pointer;">
+        </div>
+        <div class="control-row">
+          <div class="label">光斑大小 <span id="spot-size-val" class="mono" style="font-size:12px; opacity:0.7; margin-left:4px">100%</span></div>
+          <input type="range" id="spot-size-slider" min="0.5" max="2" step="0.1" value="1" style="width: 120px; cursor: pointer;">
         </div>
         <div class="control-row">
           <div class="label">云层交互</div>
@@ -1712,6 +1717,8 @@ function renderTopForegroundApps(list){
     const intensityVal = document.getElementById('intensity-val');
     const rangeSlider = document.getElementById('range-slider');
     const rangeVal = document.getElementById('range-val');
+    const spotSizeSlider = document.getElementById('spot-size-slider');
+    const spotSizeVal = document.getElementById('spot-size-val');
     const cloudInteractionToggle = document.getElementById('cloud-interaction-toggle');
     const qualitySelect = document.getElementById('quality-select');
     const themeSelect = document.getElementById('theme-select');
@@ -1727,6 +1734,7 @@ function renderTopForegroundApps(list){
         manualColorHex,
         intensity: intensitySlider.value,
         range: rangeSlider.value,
+        spotSize: spotSizeSlider.value,
         cloudInteraction: cloudInteractionToggle.checked,
         quality: qualitySelect.value,
         theme: themeSelect.value,
@@ -1767,6 +1775,11 @@ function renderTopForegroundApps(list){
           rangeSlider.value = s.range;
           rangeVal.textContent = Math.round(s.range * 100) + '%';
           document.documentElement.style.setProperty('--light-range-scale', s.range);
+        }
+        if (s.spotSize) {
+          spotSizeSlider.value = s.spotSize;
+          spotSizeVal.textContent = Math.round(s.spotSize * 100) + '%';
+          document.documentElement.style.setProperty('--spot-size-scale', s.spotSize);
         }
         if (s.cloudInteraction !== undefined) {
           cloudInteractionToggle.checked = s.cloudInteraction;
@@ -1862,6 +1875,13 @@ function renderTopForegroundApps(list){
       const val = e.target.value;
       rangeVal.textContent = Math.round(val * 100) + '%';
       document.documentElement.style.setProperty('--light-range-scale', val);
+      saveSettings();
+    });
+
+    spotSizeSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      spotSizeVal.textContent = Math.round(val * 100) + '%';
+      document.documentElement.style.setProperty('--spot-size-scale', val);
       saveSettings();
     });
 
@@ -1982,6 +2002,7 @@ function renderTopForegroundApps(list){
       uniform vec3 u_color;
       uniform float u_intensity;
       uniform float u_range;
+      uniform float u_spotSize;
       uniform float u_opacity; // Controls beam/spot visibility
 
       // Simple noise function
@@ -2040,7 +2061,7 @@ function renderTopForegroundApps(list){
 
         // 4. Mouse Spot
         float spotDist = length(p - mouseP);
-        float spot = smoothstep(0.3 * u_range, 0.0, spotDist);
+        float spot = smoothstep(0.3 * u_range * u_spotSize, 0.0, spotDist);
 
         // 5. Sun Ambient (Bloom/Scattering)
         float sunDist = length(p - sunP);
@@ -2065,13 +2086,16 @@ function renderTopForegroundApps(list){
       gl = glCanvas.getContext('webgl');
       if (!gl) {
         console.error('WebGL not supported');
-        setRenderMode('css');
-        return;
+        return false;
       }
 
       const vs = createShader(gl, gl.VERTEX_SHADER, VS_SOURCE);
       const fs = createShader(gl, gl.FRAGMENT_SHADER, FS_SOURCE);
+      
+      if (!vs || !fs) return false;
+
       glProgram = createProgram(gl, vs, fs);
+      if (!glProgram) return false;
 
       glLocations = {
         position: gl.getAttribLocation(glProgram, 'position'),
@@ -2082,6 +2106,7 @@ function renderTopForegroundApps(list){
         u_color: gl.getUniformLocation(glProgram, 'u_color'),
         u_intensity: gl.getUniformLocation(glProgram, 'u_intensity'),
         u_range: gl.getUniformLocation(glProgram, 'u_range'),
+        u_spotSize: gl.getUniformLocation(glProgram, 'u_spotSize'),
         u_opacity: gl.getUniformLocation(glProgram, 'u_opacity')
       };
 
@@ -2095,6 +2120,8 @@ function renderTopForegroundApps(list){
          1, -1,
          1,  1,
       ]), gl.STATIC_DRAW);
+      
+      return true;
     }
 
     function createShader(gl, type, source) {
@@ -2132,7 +2159,7 @@ function renderTopForegroundApps(list){
       }
     }
 
-    function renderWebGL(time, sunX, sunY, mouseX, mouseY, colorRgb, intensity, range, opacity) {
+    function renderWebGL(time, sunX, sunY, mouseX, mouseY, colorRgb, intensity, range, spotSize, opacity) {
       if (!gl || !glProgram) return;
       
       gl.useProgram(glProgram);
@@ -2150,6 +2177,7 @@ function renderTopForegroundApps(list){
       gl.uniform3f(glLocations.u_color, rgb[0], rgb[1], rgb[2]);
       gl.uniform1f(glLocations.u_intensity, parseFloat(intensity));
       gl.uniform1f(glLocations.u_range, parseFloat(range));
+      gl.uniform1f(glLocations.u_spotSize, parseFloat(spotSize));
       gl.uniform1f(glLocations.u_opacity, parseFloat(opacity));
 
       gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -2159,7 +2187,15 @@ function renderTopForegroundApps(list){
       if (mode === 'webgl') {
         document.body.classList.add('use-webgl');
         renderScaleRow.style.display = 'flex';
-        if (!gl) initWebGL();
+        
+        if (!gl) {
+          const success = initWebGL();
+          if (!success) {
+            console.error("WebGL initialization failed, falling back to CSS");
+            setRenderMode('css');
+            return;
+          }
+        }
         resizeWebGL(); // Ensure size is correct immediately
         isWebGLActive = true;
       } else {
@@ -2168,6 +2204,9 @@ function renderTopForegroundApps(list){
         isWebGLActive = false;
       }
       localStorage.setItem('render_mode', mode);
+      if (renderModeSelect.value !== mode) {
+        renderModeSelect.value = mode;
+      }
     }
 
     renderModeSelect.addEventListener('change', (e) => {
@@ -2304,7 +2343,7 @@ function renderTopForegroundApps(list){
       
       // 6. Render WebGL
       if (isWebGLActive) {
-        renderWebGL(now, sunX, sunY, mouseX, mouseY, currentRgb, intensitySlider.value, rangeSlider.value, currentOpacity);
+        renderWebGL(now, sunX, sunY, mouseX, mouseY, currentRgb, intensitySlider.value, rangeSlider.value, spotSizeSlider.value, currentOpacity);
       }
 
       // Schedule next frame
